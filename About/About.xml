@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+  <name>Odyssey Interplanetary Flight</name>
+  <author>OpenAI</author>
+  <supportedVersions>
+    <li>1.6</li>
+  </supportedVersions>
+  <packageId>openai.odysseyinterplanetaryflight</packageId>
+  <description>Buildable orbital navigation console for Odyssey gravships, synthetic interplanetary routes, an orbital map UI, and travel between generated planetary bodies.</description>
+  <modDependencies>
+    <li>
+      <packageId>Ludeon.RimWorld.Odyssey</packageId>
+      <displayName>Odyssey</displayName>
+      <downloadUrl>https://rimworldgame.com</downloadUrl>
+    </li>
+  </modDependencies>
+</ModMetaData>

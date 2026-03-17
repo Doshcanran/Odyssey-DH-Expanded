@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+	<IO_OpenOrbitMap>Орбитальная карта</IO_OpenOrbitMap>
+	<IO_OpenOrbitMapDesc>Открыть орбитальную карту и выбрать маршрут межпланетного перелета.</IO_OpenOrbitMapDesc>
+	<IO_WindowTitle>Орбитальная карта</IO_WindowTitle>
+	<IO_CurrentPlanet>Текущая орбита: {0}</IO_CurrentPlanet>
+	<IO_SelectDestination>Выбери пункт назначения:</IO_SelectDestination>
+	<IO_FlyTo>Лететь: {0}</IO_FlyTo>
+	<IO_TravelDays>Время в пути: {0} дн.</IO_TravelDays>
+	<IO_AlreadyTravelling>Корабль уже находится в межпланетном перелете или ожидает посадки.</IO_AlreadyTravelling>
+	<IO_TravelStarted>Корабль вышел на межпланетный курс к точке: {0}</IO_TravelStarted>
+	<IO_ArrivedOrbit>Корабль вышел на орбиту объекта: {0}. Следующий этап — выбор места посадки.</IO_ArrivedOrbit>
+	<IO_Station>Орбитальная станция</IO_Station>
+	<IO_AsteroidBelt>Пояс астероидов</IO_AsteroidBelt>
+	<IO_NoPower>Терминал не запитан.</IO_NoPower>
+	<IO_ShipMissing>Не найден доступный корабль Odyssey.</IO_ShipMissing>
+	<IO_SameDestination>Корабль уже находится у этого объекта.</IO_SameDestination>
+	<IO_CaptureFailed>Не удалось сохранить состав корабля перед стартом.</IO_CaptureFailed>
+	<IO_MustBePlacedOnShip>Межпланетный терминал можно установить только на надстройку гравикорабля.</IO_MustBePlacedOnShip>
+</LanguageData>

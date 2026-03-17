@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Defs>
+  <MainButtonDef>
+    <defName>IO_SolarSystem</defName>
+    <label>Солнечная система</label>
+    <description>Открыть карту солнечной системы и активные межпланетные маршруты.</description>
+    <tabWindowClass>InterstellarOdyssey.MainTabWindow_SolarSystem</tabWindowClass>
+    <workerClass>InterstellarOdyssey.MainButtonWorker_InterstellarSystem</workerClass>
+    <buttonVisible>true</buttonVisible>
+    <order>90</order>
+  </MainButtonDef>
+</Defs>
