@@ -165,6 +165,18 @@ namespace InterstellarOdyssey
         }
     }
 
+    public class ShipRoofSnapshot : IExposable
+    {
+        public IntVec3 offset = IntVec3.Zero;
+        public RoofDef roofDef;
+
+        public void ExposeData()
+        {
+            Scribe_Values.Look(ref offset, "offset", IntVec3.Zero);
+            Scribe_Defs.Look(ref roofDef, "roofDef");
+        }
+    }
+
     public class ShipSnapshot : IExposable
     {
         public int shipThingId;
@@ -175,6 +187,7 @@ namespace InterstellarOdyssey
         public List<ShipThingSnapshot> items = new List<ShipThingSnapshot>();
         public List<ShipPawnSnapshot> pawns = new List<ShipPawnSnapshot>();
         public List<ShipTerrainSnapshot> terrains = new List<ShipTerrainSnapshot>();
+        public List<ShipRoofSnapshot> roofs = new List<ShipRoofSnapshot>();
 
         public void ExposeData()
         {
@@ -186,11 +199,13 @@ namespace InterstellarOdyssey
             Scribe_Collections.Look(ref items, "items", LookMode.Deep);
             Scribe_Collections.Look(ref pawns, "pawns", LookMode.Deep);
             Scribe_Collections.Look(ref terrains, "terrains", LookMode.Deep);
+            Scribe_Collections.Look(ref roofs, "roofs", LookMode.Deep);
 
             if (buildings == null) buildings = new List<ShipThingSnapshot>();
             if (items == null) items = new List<ShipThingSnapshot>();
             if (pawns == null) pawns = new List<ShipPawnSnapshot>();
             if (terrains == null) terrains = new List<ShipTerrainSnapshot>();
+            if (roofs == null) roofs = new List<ShipRoofSnapshot>();
         }
     }
 
@@ -304,7 +319,7 @@ namespace InterstellarOdyssey
 
     public static class ShipCaptureUtility
     {
-        private static readonly HashSet<string> StructuralDefs = new HashSet<string>
+        private static readonly HashSet<string> StructuralDefs = new HashSet<string>(StringComparer.Ordinal)
         {
             "GravEngine",
             "GravshipHull",
@@ -316,54 +331,70 @@ namespace InterstellarOdyssey
             "IO_ShipNavigationConsole"
         };
 
+        private static string GetShipStructureDefName(Thing thing)
+        {
+            if (thing == null || thing.def == null)
+                return null;
+
+            if (thing is Blueprint || thing is Frame)
+            {
+                ThingDef buildDef = thing.def.entityDefToBuild as ThingDef;
+                if (buildDef != null)
+                    return buildDef.defName;
+            }
+
+            return thing.def.defName;
+        }
+
+        private static bool IsKnownShipStructureDef(string defName)
+        {
+            return !string.IsNullOrEmpty(defName) && StructuralDefs.Contains(defName);
+        }
+
         public static Thing FindShipAnchorForConsole(Building console)
         {
             if (console == null || console.Map == null)
                 return null;
 
-            HashSet<IntVec3> terrainCells = CollectConnectedShipTerrain(console.Map, console.Position);
-            if (terrainCells.Count == 0)
+            Map map = console.Map;
+            HashSet<IntVec3> shipCells = CollectConnectedShipTerrain(map, console.Position);
+            if (shipCells.Count == 0)
                 return null;
 
-            List<Thing> candidates = CollectStructuralShipThings(console.Map, console.Faction, terrainCells);
-            if (candidates.Count == 0)
-                return console;
-
             Thing best = null;
-            float bestScore = float.MinValue;
+            int bestScore = int.MinValue;
 
-            for (int i = 0; i < candidates.Count; i++)
+            List<Thing> allThings = map.listerThings.AllThings;
+            for (int i = 0; i < allThings.Count; i++)
             {
-                Thing candidate = candidates[i];
-                if (candidate == null || candidate.Destroyed || !candidate.Spawned || candidate.def == null)
+                Thing thing = allThings[i];
+                if (thing == null || thing.Destroyed || !thing.Spawned || thing.def == null)
                     continue;
 
-                float score = 0f;
-                string defName = candidate.def.defName ?? string.Empty;
+                if (thing.Faction != console.Faction)
+                    continue;
 
-                if (candidate == console)
-                    score -= 1000f;
-                if (defName.IndexOf("engine", StringComparison.OrdinalIgnoreCase) >= 0)
-                    score += 120f;
-                if (defName.IndexOf("core", StringComparison.OrdinalIgnoreCase) >= 0)
-                    score += 100f;
-                if (defName.IndexOf("hull", StringComparison.OrdinalIgnoreCase) >= 0)
-                    score += 80f;
-                if (defName.IndexOf("ship", StringComparison.OrdinalIgnoreCase) >= 0)
-                    score += 60f;
-                if (defName.IndexOf("console", StringComparison.OrdinalIgnoreCase) >= 0)
-                    score -= 50f;
+                if (!IsStructuralShipThing(thing))
+                    continue;
 
-                score -= candidate.Position.DistanceToSquared(console.Position) * 0.01f;
+                if (!IsThingConnectedToShipCluster(thing, shipCells))
+                    continue;
 
-                if (best == null || score > bestScore)
+                int score = ScorePotentialAnchor(thing, console.Position);
+                if (score > bestScore)
                 {
-                    best = candidate;
+                    best = thing;
                     bestScore = score;
                 }
             }
 
-            return best ?? console;
+            if (best != null)
+                return best;
+
+            if (console.Spawned && IsThingConnectedToShipCluster(console, shipCells))
+                return console;
+
+            return null;
         }
 
         public static bool TryCaptureAndDespawnShip(Thing shipAnchor, string currentNodeId, out ShipSnapshot snapshot)
@@ -385,6 +416,10 @@ namespace InterstellarOdyssey
             if (structural.Count == 0)
                 return false;
 
+            CellRect shipBounds = ComputeBounds(structural, terrainCells);
+            shipBounds = shipBounds.ExpandedBy(1);
+            shipBounds.ClipInsideMap(map);
+
             snapshot = new ShipSnapshot
             {
                 shipThingId = shipAnchor.thingIDNumber,
@@ -393,7 +428,7 @@ namespace InterstellarOdyssey
                 anchorCell = anchorCell
             };
 
-            CaptureTerrain(map, anchorCell, terrainCells, snapshot);
+            CaptureTerrain(map, anchorCell, terrainCells, shipBounds, snapshot);
 
             HashSet<int> capturedThingIds = new HashSet<int>();
 
@@ -411,7 +446,8 @@ namespace InterstellarOdyssey
                 capturedThingIds.Add(thing.thingIDNumber);
             }
 
-            HashSet<IntVec3> shipCells = BuildShipOccupancyCells(terrainCells, structural);
+            HashSet<IntVec3> shipOccupancyCells = BuildShipOccupancyCells(structural, terrainCells);
+            CaptureRoofs(map, anchorCell, shipBounds, shipOccupancyCells, snapshot);
 
             List<Thing> allThings = map.listerThings.AllThings.ToList();
             for (int i = 0; i < allThings.Count; i++)
@@ -426,7 +462,7 @@ namespace InterstellarOdyssey
                 if (thing.def.category == ThingCategory.Building)
                     continue;
 
-                if (!IsThingInsideShipCells(thing, shipCells))
+                if (!IsThingInsideShipCells(thing, shipOccupancyCells))
                     continue;
 
                 if (thing is Pawn pawn)
@@ -448,15 +484,18 @@ namespace InterstellarOdyssey
             }
 
             HashSet<IntVec3> capturedCells = BuildCapturedCells(map, snapshot);
+            IntVec3 cleanupRoot = anchorCell;
 
             DespawnCapturedThings(snapshot);
-            RemoveCapturedTerrain(map, capturedCells);
-            CleanupResidualShipBuildings(map, capturedCells);
+            RemoveCapturedRoofsRobust(map, snapshot, capturedCells, cleanupRoot);
+            RemoveCapturedTerrainRobust(map, snapshot, capturedCells, cleanupRoot);
+            CleanupResidualShipBuildings(map, snapshot, capturedCells);
 
             Log.Message("[InterstellarOdyssey] Ship captured. Buildings=" + snapshot.buildings.Count
                 + " Items=" + snapshot.items.Count
                 + " Pawns=" + snapshot.pawns.Count
-                + " Terrains=" + snapshot.terrains.Count);
+                + " Terrains=" + snapshot.terrains.Count
+                + " Roofs=" + snapshot.roofs.Count);
 
             return true;
         }
@@ -466,38 +505,45 @@ namespace InterstellarOdyssey
             if (thing == null || thing.def == null)
                 return false;
 
-            if (thing.def.category != ThingCategory.Building)
+            if (thing.def.category != ThingCategory.Building && !(thing is Blueprint) && !(thing is Frame))
                 return false;
 
-            if (StructuralDefs.Contains(thing.def.defName))
-                return true;
+            string structureDefName = GetShipStructureDefName(thing);
+            if (string.IsNullOrEmpty(structureDefName))
+                return false;
 
-            string defName = (thing.def.defName ?? string.Empty).ToLowerInvariant();
-            string label = (thing.def.label ?? string.Empty).ToLowerInvariant();
-            string className = thing.GetType().FullName != null ? thing.GetType().FullName.ToLowerInvariant() : string.Empty;
-
-            if (defName.Contains("grav")
-                || defName.Contains("ship")
-                || defName.Contains("thruster")
-                || defName.Contains("hull")
-                || defName.Contains("bridge")
-                || defName.Contains("console")
-                || defName.Contains("bulkhead")
-                || defName.Contains("superstructure")
-                || label.Contains("грав")
-                || label.Contains("кораб")
-                || label.Contains("палуб")
-                || label.Contains("надстрой")
-                || className.Contains("grav")
-                || className.Contains("ship"))
-            {
-                return true;
-            }
-
-            return false;
+            return IsKnownShipStructureDef(structureDefName);
         }
 
-        private static List<Thing> CollectStructuralShipThings(Map map, Faction faction, HashSet<IntVec3> terrainCells)
+        private static int ScorePotentialAnchor(Thing thing, IntVec3 consolePos)
+        {
+            if (thing == null || thing.def == null)
+                return int.MinValue;
+
+            int score = 0;
+            string defName = (thing.def.defName ?? string.Empty).ToLowerInvariant();
+            string label = (thing.def.label ?? string.Empty).ToLowerInvariant();
+
+            if (defName.Contains("gravengine"))
+                score += 500;
+            if (defName.Contains("grav"))
+                score += 200;
+            if (defName.Contains("engine"))
+                score += 150;
+            if (defName.Contains("bridge") || defName.Contains("console"))
+                score += 80;
+            if (defName.Contains("hull"))
+                score += 40;
+            if (label.Contains("грав"))
+                score += 100;
+            if (label.Contains("кораб"))
+                score += 50;
+
+            score -= thing.Position.DistanceToSquared(consolePos);
+            return score;
+        }
+
+        private static List<Thing> CollectStructuralShipThings(Map map, Faction faction, HashSet<IntVec3> shipCells)
         {
             List<Thing> result = new List<Thing>();
             List<Thing> allThings = map.listerThings.AllThings;
@@ -514,31 +560,31 @@ namespace InterstellarOdyssey
                 if (faction != null && thing.Faction != faction)
                     continue;
 
-                if (!IsThingConnectedToShipCluster(thing, terrainCells))
+                if (!IsThingConnectedToShipCluster(thing, shipCells))
                     continue;
 
-                if (IsStructuralShipThing(thing) || TouchesShipTerrain(thing, terrainCells))
+                if (IsStructuralShipThing(thing) || ThingTouchesShipFloor(thing, shipCells))
                     result.Add(thing);
             }
 
             return result;
         }
 
-        private static bool IsThingConnectedToShipCluster(Thing thing, HashSet<IntVec3> terrainCells)
+        private static bool IsThingConnectedToShipCluster(Thing thing, HashSet<IntVec3> shipCells)
         {
-            if (thing == null)
+            if (thing == null || shipCells == null || shipCells.Count == 0)
                 return false;
 
             CellRect rect = thing.OccupiedRect();
             foreach (IntVec3 cell in rect.Cells)
             {
-                if (terrainCells.Contains(cell))
+                if (shipCells.Contains(cell))
                     return true;
 
                 for (int i = 0; i < 8; i++)
                 {
-                    IntVec3 adjacent = cell + GenAdj.AdjacentCells[i];
-                    if (terrainCells.Contains(adjacent))
+                    IntVec3 near = cell + GenAdj.AdjacentCells[i];
+                    if (shipCells.Contains(near))
                         return true;
                 }
             }
@@ -546,31 +592,53 @@ namespace InterstellarOdyssey
             return false;
         }
 
-        private static bool TouchesShipTerrain(Thing thing, HashSet<IntVec3> terrainCells)
+        private static bool ThingTouchesShipFloor(Thing thing, HashSet<IntVec3> shipCells)
         {
-            if (thing == null)
+            if (thing == null || shipCells == null)
                 return false;
 
-            CellRect rect = thing.OccupiedRect();
-            foreach (IntVec3 cell in rect.Cells)
+            foreach (IntVec3 cell in thing.OccupiedRect().Cells)
             {
-                if (terrainCells.Contains(cell))
+                if (shipCells.Contains(cell))
                     return true;
             }
 
             return false;
         }
 
+        private static HashSet<IntVec3> BuildShipOccupancyCells(List<Thing> structural, HashSet<IntVec3> terrainCells)
+        {
+            HashSet<IntVec3> result = new HashSet<IntVec3>();
+
+            if (terrainCells != null)
+            {
+                foreach (IntVec3 cell in terrainCells)
+                    result.Add(cell);
+            }
+
+            if (structural != null)
+            {
+                for (int i = 0; i < structural.Count; i++)
+                {
+                    Thing thing = structural[i];
+                    if (thing == null)
+                        continue;
+
+                    foreach (IntVec3 cell in thing.OccupiedRect().Cells)
+                        result.Add(cell);
+                }
+            }
+
+            return result;
+        }
+
         private static bool IsThingInsideShipCells(Thing thing, HashSet<IntVec3> shipCells)
         {
-            if (thing == null)
+            if (thing == null || shipCells == null || shipCells.Count == 0)
                 return false;
 
             if (thing is Pawn)
                 return shipCells.Contains(thing.Position);
-
-            if (shipCells.Contains(thing.Position))
-                return true;
 
             if (thing.def != null && (thing.def.size.x > 1 || thing.def.size.z > 1))
             {
@@ -579,29 +647,11 @@ namespace InterstellarOdyssey
                     if (shipCells.Contains(cell))
                         return true;
                 }
+
+                return false;
             }
 
-            return false;
-        }
-
-        private static HashSet<IntVec3> BuildShipOccupancyCells(HashSet<IntVec3> terrainCells, List<Thing> structural)
-        {
-            HashSet<IntVec3> cells = new HashSet<IntVec3>(terrainCells);
-
-            if (structural == null)
-                return cells;
-
-            for (int i = 0; i < structural.Count; i++)
-            {
-                Thing thing = structural[i];
-                if (thing == null)
-                    continue;
-
-                foreach (IntVec3 cell in thing.OccupiedRect().Cells)
-                    cells.Add(cell);
-            }
-
-            return cells;
+            return shipCells.Contains(thing.Position);
         }
 
         private static HashSet<IntVec3> CollectConnectedShipTerrain(Map map, IntVec3 start)
@@ -650,9 +700,77 @@ namespace InterstellarOdyssey
             return result;
         }
 
-        private static void CaptureTerrain(Map map, IntVec3 anchorCell, HashSet<IntVec3> terrainCells, ShipSnapshot snapshot)
+        private static CellRect ComputeBounds(List<Thing> structural, HashSet<IntVec3> terrainCells)
         {
+            bool hasAny = false;
+            int minX = int.MaxValue;
+            int minZ = int.MaxValue;
+            int maxX = int.MinValue;
+            int maxZ = int.MinValue;
+
+            foreach (Thing thing in structural)
+            {
+                if (thing == null)
+                    continue;
+
+                foreach (IntVec3 cell in thing.OccupiedRect().Cells)
+                {
+                    hasAny = true;
+                    minX = Mathf.Min(minX, cell.x);
+                    minZ = Mathf.Min(minZ, cell.z);
+                    maxX = Mathf.Max(maxX, cell.x);
+                    maxZ = Mathf.Max(maxZ, cell.z);
+                }
+            }
+
             foreach (IntVec3 cell in terrainCells)
+            {
+                hasAny = true;
+                minX = Mathf.Min(minX, cell.x);
+                minZ = Mathf.Min(minZ, cell.z);
+                maxX = Mathf.Max(maxX, cell.x);
+                maxZ = Mathf.Max(maxZ, cell.z);
+            }
+
+            if (!hasAny)
+                return CellRect.Empty;
+
+            return CellRect.FromLimits(minX, minZ, maxX, maxZ);
+        }
+
+        private static void CaptureTerrain(Map map, IntVec3 anchorCell, HashSet<IntVec3> terrainCells, CellRect shipBounds, ShipSnapshot snapshot)
+        {
+            if (map == null || snapshot == null)
+                return;
+
+            HashSet<IntVec3> cellsToCapture = new HashSet<IntVec3>();
+
+            if (terrainCells != null)
+            {
+                foreach (IntVec3 cell in terrainCells)
+                {
+                    if (cell.InBounds(map))
+                        cellsToCapture.Add(cell);
+                }
+            }
+
+            if (!shipBounds.IsEmpty)
+            {
+                CellRect expandedBounds = shipBounds.ExpandedBy(2);
+                expandedBounds.ClipInsideMap(map);
+
+                foreach (IntVec3 cell in expandedBounds.Cells)
+                {
+                    if (!cell.InBounds(map))
+                        continue;
+
+                    TerrainDef terrain = map.terrainGrid.TerrainAt(cell);
+                    if (ShipFloorUtility.IsShipFloor(terrain))
+                        cellsToCapture.Add(cell);
+                }
+            }
+
+            foreach (IntVec3 cell in cellsToCapture)
             {
                 if (!cell.InBounds(map))
                     continue;
@@ -669,6 +787,51 @@ namespace InterstellarOdyssey
             }
         }
 
+        private static void CaptureRoofs(Map map, IntVec3 anchorCell, CellRect shipBounds, HashSet<IntVec3> roofCells, ShipSnapshot snapshot)
+        {
+            if (map == null || map.roofGrid == null || snapshot == null)
+                return;
+
+            HashSet<IntVec3> cellsToCapture = new HashSet<IntVec3>();
+
+            if (roofCells != null)
+            {
+                foreach (IntVec3 cell in roofCells)
+                {
+                    if (cell.InBounds(map))
+                        cellsToCapture.Add(cell);
+                }
+            }
+
+            if (!shipBounds.IsEmpty)
+            {
+                CellRect expandedBounds = shipBounds.ExpandedBy(1);
+                expandedBounds.ClipInsideMap(map);
+
+                foreach (IntVec3 cell in expandedBounds.Cells)
+                {
+                    if (cell.InBounds(map) && map.roofGrid.RoofAt(cell) != null)
+                        cellsToCapture.Add(cell);
+                }
+            }
+
+            foreach (IntVec3 cell in cellsToCapture)
+            {
+                if (!cell.InBounds(map))
+                    continue;
+
+                RoofDef roof = map.roofGrid.RoofAt(cell);
+                if (roof == null)
+                    continue;
+
+                snapshot.roofs.Add(new ShipRoofSnapshot
+                {
+                    offset = cell - anchorCell,
+                    roofDef = roof
+                });
+            }
+        }
+
         private static HashSet<IntVec3> BuildCapturedCells(Map map, ShipSnapshot snapshot)
         {
             HashSet<IntVec3> cells = new HashSet<IntVec3>();
@@ -681,6 +844,16 @@ namespace InterstellarOdyssey
                 for (int i = 0; i < snapshot.terrains.Count; i++)
                 {
                     IntVec3 cell = snapshot.anchorCell + snapshot.terrains[i].offset;
+                    if (cell.InBounds(map))
+                        cells.Add(cell);
+                }
+            }
+
+            if (snapshot.roofs != null)
+            {
+                for (int i = 0; i < snapshot.roofs.Count; i++)
+                {
+                    IntVec3 cell = snapshot.anchorCell + snapshot.roofs[i].offset;
                     if (cell.InBounds(map))
                         cells.Add(cell);
                 }
@@ -770,34 +943,416 @@ namespace InterstellarOdyssey
             }
         }
 
-        private static void RemoveCapturedTerrain(Map map, HashSet<IntVec3> capturedCells)
+
+        private static void RemoveCapturedRoofsRobust(Map map, ShipSnapshot snapshot, HashSet<IntVec3> capturedCells, IntVec3 cleanupRoot)
         {
-            if (map == null || capturedCells == null)
+            if (map == null || map.roofGrid == null)
                 return;
 
-            TerrainDef natural = TerrainDefOf.Soil ?? TerrainDefOf.Sand;
+            HashSet<IntVec3> cellsToClear = new HashSet<IntVec3>();
 
-            foreach (IntVec3 cell in capturedCells)
+            if (capturedCells != null)
+            {
+                foreach (IntVec3 cell in capturedCells)
+                {
+                    if (cell.InBounds(map))
+                        cellsToClear.Add(cell);
+                }
+            }
+
+            if (snapshot != null && snapshot.roofs != null)
+            {
+                for (int i = 0; i < snapshot.roofs.Count; i++)
+                {
+                    ShipRoofSnapshot entry = snapshot.roofs[i];
+                    if (entry == null || entry.roofDef == null)
+                        continue;
+
+                    IntVec3 cell = snapshot.anchorCell + entry.offset;
+                    if (cell.InBounds(map))
+                        cellsToClear.Add(cell);
+                }
+            }
+
+            foreach (IntVec3 cell in CollectConnectedShipFloorForCleanup(map, cleanupRoot, 4))
+                cellsToClear.Add(cell);
+
+            List<IntVec3> seeds = cellsToClear.ToList();
+            for (int i = 0; i < seeds.Count; i++)
+            {
+                IntVec3 c = seeds[i];
+                for (int dx = -2; dx <= 2; dx++)
+                {
+                    for (int dz = -2; dz <= 2; dz++)
+                    {
+                        IntVec3 at = new IntVec3(c.x + dx, 0, c.z + dz);
+                        if (!at.InBounds(map))
+                            continue;
+
+                        RoofDef roof = map.roofGrid.RoofAt(at);
+                        if (roof != null)
+                            cellsToClear.Add(at);
+                    }
+                }
+            }
+
+            foreach (IntVec3 cell in cellsToClear)
             {
                 if (!cell.InBounds(map))
                     continue;
 
-                if (map.roofGrid != null)
-                    map.roofGrid.SetRoof(cell, null);
+                RoofDef currentRoof = map.roofGrid.RoofAt(cell);
+                if (currentRoof == null)
+                    continue;
 
-                TerrainDef terrain = map.terrainGrid.TerrainAt(cell);
-                if (ShipFloorUtility.IsShipFloor(terrain))
+                try
                 {
-                    map.terrainGrid.SetTerrain(cell, natural);
-                    map.mapDrawer.MapMeshDirty(cell, MapMeshFlagDefOf.Terrain);
+                    map.roofGrid.SetRoof(cell, null);
+                    map.mapDrawer.MapMeshDirty(cell, MapMeshFlagDefOf.Roofs);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning("[InterstellarOdyssey] RemoveCapturedRoofsRobust failed at " + cell + ": " + ex);
                 }
             }
         }
 
-        private static void CleanupResidualShipBuildings(Map map, HashSet<IntVec3> capturedCells)
+        private static void RemoveCapturedTerrainRobust(Map map, ShipSnapshot snapshot, HashSet<IntVec3> capturedCells, IntVec3 cleanupRoot)
         {
-            if (map == null || capturedCells == null)
+            if (map == null)
                 return;
+
+            Log.Message("[IO] RemoveCapturedTerrainRobust start. snapshotTerrains="
+                + (snapshot?.terrains?.Count ?? 0)
+                + " capturedCells=" + (capturedCells?.Count ?? 0)
+                + " cleanupRoot=" + cleanupRoot);
+
+            HashSet<IntVec3> cellsToClear = new HashSet<IntVec3>();
+            Dictionary<IntVec3, TerrainDef> replacementByCell = new Dictionary<IntVec3, TerrainDef>();
+
+            if (snapshot != null && snapshot.terrains != null)
+            {
+                for (int i = 0; i < snapshot.terrains.Count; i++)
+                {
+                    ShipTerrainSnapshot entry = snapshot.terrains[i];
+                    if (entry == null)
+                        continue;
+
+                    IntVec3 cell = snapshot.anchorCell + entry.offset;
+                    if (cell.InBounds(map))
+                        cellsToClear.Add(cell);
+                }
+            }
+
+            if (capturedCells != null)
+            {
+                foreach (IntVec3 cell in capturedCells)
+                {
+                    if (cell.InBounds(map))
+                        cellsToClear.Add(cell);
+                }
+            }
+
+            CellRect sourceBounds = ComputeSourceCleanupBounds(map, snapshot);
+            if (!sourceBounds.IsEmpty)
+            {
+                foreach (IntVec3 cell in sourceBounds.Cells)
+                {
+                    if (!cell.InBounds(map))
+                        continue;
+
+                    TerrainDef terrain = map.terrainGrid.TerrainAt(cell);
+                    if (ShipFloorUtility.IsShipFloor(terrain))
+                        cellsToClear.Add(cell);
+                }
+            }
+
+            foreach (IntVec3 cell in CollectConnectedShipFloorForCleanup(map, cleanupRoot, 24))
+            {
+                if (cell.InBounds(map))
+                    cellsToClear.Add(cell);
+            }
+
+            foreach (IntVec3 cell in cellsToClear)
+            {
+                if (!cell.InBounds(map))
+                    continue;
+
+                TerrainDef current = map.terrainGrid.TerrainAt(cell);
+                if (current == null || !ShipFloorUtility.IsShipFloor(current))
+                    continue;
+
+                replacementByCell[cell] = ResolveReplacementTerrainForCleanup(map, cell, cellsToClear);
+            }
+
+            int removedCount = 0;
+            int fallbackCount = 0;
+
+            foreach (IntVec3 cell in cellsToClear)
+            {
+                if (!cell.InBounds(map))
+                    continue;
+
+                TerrainDef current = map.terrainGrid.TerrainAt(cell);
+                if (current == null || !ShipFloorUtility.IsShipFloor(current))
+                    continue;
+
+                TerrainDef replacement = replacementByCell.TryGetValue(cell, out TerrainDef planned)
+                    ? planned
+                    : (TerrainDefOf.Soil ?? TerrainDefOf.Sand);
+
+                try
+                {
+                    bool cleared = false;
+
+                    if (current.layerable)
+                    {
+                        try
+                        {
+                            map.terrainGrid.RemoveTopLayer(cell, false);
+                            cleared = true;
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warning("[InterstellarOdyssey] RemoveTopLayer failed at " + cell + ": " + ex.Message);
+                        }
+                    }
+
+                    TerrainDef afterRemove = map.terrainGrid.TerrainAt(cell);
+                    if (afterRemove == null || ShipFloorUtility.IsShipFloor(afterRemove))
+                    {
+                        map.terrainGrid.SetTerrain(cell, replacement);
+                        fallbackCount++;
+                    }
+
+                    map.mapDrawer.MapMeshDirty(cell, MapMeshFlagDefOf.Terrain);
+                    removedCount++;
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning("[InterstellarOdyssey] RemoveCapturedTerrainRobust cleanup failed at " + cell + ": " + ex);
+                }
+            }
+
+            Log.Message("[IO] RemoveCapturedTerrainRobust done. cellsToClear="
+                + cellsToClear.Count + " removedCount=" + removedCount + " fallbackCount=" + fallbackCount);
+        }
+
+        private static TerrainDef ResolveReplacementTerrainForCleanup(Map map, IntVec3 cell, HashSet<IntVec3> cellsBeingRemoved)
+        {
+            if (map == null || !cell.InBounds(map))
+                return TerrainDefOf.Soil ?? TerrainDefOf.Sand;
+
+            for (int radius = 1; radius <= 12; radius++)
+            {
+                CellRect rect = CellRect.CenteredOn(cell, radius);
+                rect.ClipInsideMap(map);
+
+                foreach (IntVec3 at in rect.EdgeCells)
+                {
+                    if (!at.InBounds(map))
+                        continue;
+
+                    if (cellsBeingRemoved != null && cellsBeingRemoved.Contains(at))
+                        continue;
+
+                    TerrainDef terrain = map.terrainGrid.TerrainAt(at);
+                    if (terrain == null)
+                        continue;
+
+                    if (!ShipFloorUtility.IsShipFloor(terrain))
+                        return terrain;
+                }
+            }
+
+            return TerrainDefOf.Soil ?? TerrainDefOf.Sand;
+        }
+
+        private static CellRect ComputeSourceCleanupBounds(Map map, ShipSnapshot snapshot)
+        {
+            if (map == null || snapshot == null)
+                return CellRect.Empty;
+
+            bool hasAny = false;
+            int minX = int.MaxValue;
+            int minZ = int.MaxValue;
+            int maxX = int.MinValue;
+            int maxZ = int.MinValue;
+
+            if (snapshot.terrains != null)
+            {
+                for (int i = 0; i < snapshot.terrains.Count; i++)
+                {
+                    ShipTerrainSnapshot entry = snapshot.terrains[i];
+                    if (entry == null)
+                        continue;
+
+                    IntVec3 cell = snapshot.anchorCell + entry.offset;
+                    if (!cell.InBounds(map))
+                        continue;
+
+                    hasAny = true;
+                    minX = Mathf.Min(minX, cell.x);
+                    minZ = Mathf.Min(minZ, cell.z);
+                    maxX = Mathf.Max(maxX, cell.x);
+                    maxZ = Mathf.Max(maxZ, cell.z);
+                }
+            }
+
+            if (snapshot.roofs != null)
+            {
+                for (int i = 0; i < snapshot.roofs.Count; i++)
+                {
+                    ShipRoofSnapshot entry = snapshot.roofs[i];
+                    if (entry == null)
+                        continue;
+
+                    IntVec3 cell = snapshot.anchorCell + entry.offset;
+                    if (!cell.InBounds(map))
+                        continue;
+
+                    hasAny = true;
+                    minX = Mathf.Min(minX, cell.x);
+                    minZ = Mathf.Min(minZ, cell.z);
+                    maxX = Mathf.Max(maxX, cell.x);
+                    maxZ = Mathf.Max(maxZ, cell.z);
+                }
+            }
+
+            if (snapshot.buildings != null)
+            {
+                for (int i = 0; i < snapshot.buildings.Count; i++)
+                {
+                    ShipThingSnapshot entry = snapshot.buildings[i];
+                    Thing thing = entry != null ? entry.thing : null;
+                    if (thing == null || thing.def == null)
+                        continue;
+
+                    IntVec3 pos = snapshot.anchorCell + entry.offset;
+                    CellRect rect = GenAdj.OccupiedRect(pos, thing.Rotation, thing.def.Size);
+
+                    foreach (IntVec3 cell in rect.Cells)
+                    {
+                        if (!cell.InBounds(map))
+                            continue;
+
+                        hasAny = true;
+                        minX = Mathf.Min(minX, cell.x);
+                        minZ = Mathf.Min(minZ, cell.z);
+                        maxX = Mathf.Max(maxX, cell.x);
+                        maxZ = Mathf.Max(maxZ, cell.z);
+                    }
+                }
+            }
+
+            if (!hasAny)
+                return CellRect.Empty;
+
+            CellRect bounds = CellRect.FromLimits(minX, minZ, maxX, maxZ).ExpandedBy(2);
+            bounds.ClipInsideMap(map);
+            return bounds;
+        }
+
+        private static HashSet<IntVec3> CollectConnectedShipFloorForCleanup(Map map, IntVec3 root, int searchRadius)
+        {
+            HashSet<IntVec3> result = new HashSet<IntVec3>();
+            if (map == null)
+                return result;
+
+            Queue<IntVec3> open = new Queue<IntVec3>();
+
+            for (int dx = -searchRadius; dx <= searchRadius; dx++)
+            {
+                for (int dz = -searchRadius; dz <= searchRadius; dz++)
+                {
+                    IntVec3 at = new IntVec3(root.x + dx, 0, root.z + dz);
+                    if (!at.InBounds(map))
+                        continue;
+
+                    TerrainDef terrain = map.terrainGrid.TerrainAt(at);
+                    if (!ShipFloorUtility.IsShipFloor(terrain))
+                        continue;
+
+                    if (result.Add(at))
+                        open.Enqueue(at);
+                }
+            }
+
+            while (open.Count > 0)
+            {
+                IntVec3 cur = open.Dequeue();
+
+                for (int i = 0; i < 8; i++)
+                {
+                    IntVec3 next = cur + GenAdj.AdjacentCells[i];
+                    if (!next.InBounds(map))
+                        continue;
+
+                    if (result.Contains(next))
+                        continue;
+
+                    TerrainDef terrain = map.terrainGrid.TerrainAt(next);
+                    if (!ShipFloorUtility.IsShipFloor(terrain))
+                        continue;
+
+                    result.Add(next);
+                    open.Enqueue(next);
+                }
+            }
+
+            return result;
+        }
+
+        private static TerrainDef ResolveReplacementTerrain(Map map, IntVec3 cell)
+        {
+            if (map == null || !cell.InBounds(map))
+                return TerrainDefOf.Soil ?? TerrainDefOf.Sand;
+
+            for (int radius = 1; radius <= 12; radius++)
+            {
+                CellRect rect = CellRect.CenteredOn(cell, radius);
+                rect.ClipInsideMap(map);
+
+                foreach (IntVec3 at in rect.EdgeCells)
+                {
+                    if (!at.InBounds(map))
+                        continue;
+
+                    TerrainDef terrain = map.terrainGrid.TerrainAt(at);
+                    if (terrain == null)
+                        continue;
+
+                    // ВАЖНО: игнорируем корабельные полы
+                    if (!ShipFloorUtility.IsShipFloor(terrain))
+                        return terrain;
+                }
+            }
+
+            // Если вокруг только корабельный пол — возвращаем обычную землю
+            return TerrainDefOf.Soil ?? TerrainDefOf.Sand;
+        }
+
+        private static void CleanupResidualShipBuildings(Map map, ShipSnapshot snapshot, HashSet<IntVec3> capturedCells)
+        {
+            if (map == null || snapshot == null || capturedCells == null)
+                return;
+
+            HashSet<string> capturedStructureDefs = new HashSet<string>(StringComparer.Ordinal);
+            if (snapshot.buildings != null)
+            {
+                for (int i = 0; i < snapshot.buildings.Count; i++)
+                {
+                    ShipThingSnapshot entry = snapshot.buildings[i];
+                    string defName = GetShipStructureDefName(entry != null ? entry.thing : null);
+                    if (!string.IsNullOrEmpty(defName))
+                        capturedStructureDefs.Add(defName);
+                }
+            }
+
+            if (capturedStructureDefs.Count == 0)
+                return;
+
+            HashSet<int> processedThingIds = new HashSet<int>();
 
             foreach (IntVec3 cell in capturedCells)
             {
@@ -811,70 +1366,38 @@ namespace InterstellarOdyssey
                     if (thing == null || thing.Destroyed)
                         continue;
 
-                    if (IsResidualShipPart(thing))
-                        thing.Destroy(DestroyMode.Vanish);
+                    if (!processedThingIds.Add(thing.thingIDNumber))
+                        continue;
+
+                    if (!IsResidualShipPart(thing, capturedStructureDefs, capturedCells))
+                        continue;
+
+                    thing.Destroy(DestroyMode.Vanish);
                 }
             }
         }
 
-        private static bool IsResidualShipPart(Thing thing)
+        private static bool IsResidualShipPart(Thing thing, HashSet<string> capturedStructureDefs, HashSet<IntVec3> capturedCells)
         {
-            if (thing == null || thing.def == null)
+            if (thing == null || thing.def == null || capturedStructureDefs == null || capturedStructureDefs.Count == 0)
                 return false;
 
-            string defName = (thing.def.defName ?? string.Empty).ToLowerInvariant();
-            string label = (thing.def.label ?? string.Empty).ToLowerInvariant();
-            string className = thing.GetType().FullName != null ? thing.GetType().FullName.ToLowerInvariant() : string.Empty;
+            string defName = GetShipStructureDefName(thing);
+            if (string.IsNullOrEmpty(defName) || !capturedStructureDefs.Contains(defName))
+                return false;
 
-            if (thing.def.category == ThingCategory.Building)
+            if (thing.def.category != ThingCategory.Building && !(thing is Blueprint) && !(thing is Frame))
+                return false;
+
+            foreach (IntVec3 cell in thing.OccupiedRect().Cells)
             {
-                if (defName.Contains("grav")
-                    || defName.Contains("gravship")
-                    || defName.Contains("ship")
-                    || defName.Contains("hull")
-                    || defName.Contains("deck")
-                    || defName.Contains("floor")
-                    || defName.Contains("plating")
-                    || defName.Contains("thruster")
-                    || defName.Contains("console")
-                    || defName.Contains("bridge")
-                    || defName.Contains("superstructure")
-                    || defName.Contains("bulkhead")
-                    || defName.Contains("chemfueltank")
-                    || defName.Contains("gravcore")
-                    || label.Contains("grav")
-                    || label.Contains("грав")
-                    || label.Contains("кораб")
-                    || label.Contains("палуб")
-                    || label.Contains("надстрой")
-                    || label.Contains("обшив")
-                    || label.Contains("двигатель")
-                    || label.Contains("мостик"))
-                {
+                if (capturedCells.Contains(cell))
                     return true;
-                }
             }
-
-            if (thing is Blueprint || thing is Frame)
-            {
-                if (defName.Contains("grav")
-                    || defName.Contains("ship")
-                    || defName.Contains("superstructure")
-                    || label.Contains("кораб")
-                    || label.Contains("палуб")
-                    || label.Contains("надстрой"))
-                {
-                    return true;
-                }
-            }
-
-            if (className.Contains("grav") || className.Contains("ship"))
-                return true;
 
             return false;
         }
     }
-
 
     public static class ShipLandingUtility
     {
@@ -887,6 +1410,7 @@ namespace InterstellarOdyssey
 
             RestoreTerrain(snapshot, map, targetCenter);
             RestoreBuildings(snapshot, map, targetCenter, ref restoredAnchor);
+            RestoreRoofs(snapshot, map, targetCenter);
             RestoreItems(snapshot, map, targetCenter);
             RestorePawns(snapshot, map, targetCenter);
 
@@ -930,6 +1454,43 @@ namespace InterstellarOdyssey
             }
         }
 
+
+        private static void RestoreRoofs(ShipSnapshot snapshot, Map map, IntVec3 targetCenter)
+        {
+            if (snapshot == null || map == null || map.roofGrid == null || snapshot.roofs == null)
+                return;
+
+            HashSet<IntVec3> pendingCells = new HashSet<IntVec3>();
+
+            for (int i = 0; i < snapshot.roofs.Count; i++)
+            {
+                ShipRoofSnapshot entry = snapshot.roofs[i];
+                if (entry == null || entry.roofDef == null)
+                    continue;
+
+                IntVec3 cell = targetCenter + entry.offset;
+                if (cell.InBounds(map))
+                    pendingCells.Add(cell);
+            }
+
+            foreach (IntVec3 cell in pendingCells.OrderBy(c => c.x).ThenBy(c => c.z))
+            {
+                ShipRoofSnapshot entry = snapshot.roofs.FirstOrDefault(r => r != null && r.roofDef != null && targetCenter + r.offset == cell);
+                if (entry == null)
+                    continue;
+
+                try
+                {
+                    map.roofGrid.SetRoof(cell, entry.roofDef);
+                    map.mapDrawer.MapMeshDirty(cell, MapMeshFlagDefOf.Roofs);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning("[InterstellarOdyssey] RestoreRoofs skipped at " + cell + ": " + ex.Message);
+                }
+            }
+        }
+
         private static void RestoreBuildings(ShipSnapshot snapshot, Map map, IntVec3 targetCenter, ref Thing restoredAnchor)
         {
             if (snapshot.buildings == null)
@@ -967,15 +1528,26 @@ namespace InterstellarOdyssey
                 if (entry == null || entry.thing == null || entry.thing.def == null)
                     continue;
 
-                IntVec3 cell = targetCenter + entry.offset;
-                if (!cell.InBounds(map))
+                Thing thing = entry.thing;
+                if (thing.Spawned)
                     continue;
 
-                Thing thing = entry.thing;
-                thing.Position = cell;
+                IntVec3 desiredCell = targetCenter + entry.offset;
+                if (!TryFindRestoreCellForThing(map, desiredCell, out IntVec3 spawnCell))
+                {
+                    Log.Warning("[InterstellarOdyssey] RestoreItems skipped for " + thing.LabelCap + ": no valid spawn cell near " + desiredCell);
+                    continue;
+                }
 
-                if (!thing.Spawned)
-                    GenSpawn.Spawn(thing, cell, map, WipeMode.Vanish);
+                try
+                {
+                    thing.Position = spawnCell;
+                    GenSpawn.Spawn(thing, spawnCell, map, WipeMode.Vanish);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning("[InterstellarOdyssey] RestoreItems failed for " + thing.LabelCap + " at " + spawnCell + ": " + ex.Message);
+                }
             }
         }
 
@@ -990,14 +1562,99 @@ namespace InterstellarOdyssey
                 if (entry == null || entry.pawn == null)
                     continue;
 
-                IntVec3 cell = targetCenter + entry.offset;
-                if (!cell.InBounds(map))
+                Pawn pawn = entry.pawn;
+                if (pawn.Spawned)
                     continue;
 
-                Pawn pawn = entry.pawn;
-                if (!pawn.Spawned)
-                    GenSpawn.Spawn(pawn, cell, map, WipeMode.Vanish);
+                IntVec3 desiredCell = targetCenter + entry.offset;
+                if (!TryFindRestoreCellForPawn(map, desiredCell, out IntVec3 spawnCell))
+                {
+                    Log.Warning("[InterstellarOdyssey] RestorePawns skipped for " + pawn.LabelCap + ": no valid spawn cell near " + desiredCell);
+                    continue;
+                }
+
+                try
+                {
+                    GenSpawn.Spawn(pawn, spawnCell, map, WipeMode.Vanish);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning("[InterstellarOdyssey] RestorePawns failed for " + pawn.LabelCap + " at " + spawnCell + ": " + ex.Message);
+                }
             }
+        }
+
+        private static bool TryFindRestoreCellForThing(Map map, IntVec3 desiredCell, out IntVec3 result)
+        {
+            return TryFindNearbyCell(map, desiredCell, 6, IsCellUsableForThing, out result);
+        }
+
+        private static bool TryFindRestoreCellForPawn(Map map, IntVec3 desiredCell, out IntVec3 result)
+        {
+            return TryFindNearbyCell(map, desiredCell, 8, IsCellUsableForPawn, out result);
+        }
+
+        private static bool TryFindNearbyCell(Map map, IntVec3 desiredCell, int maxRadius, Func<Map, IntVec3, bool> validator, out IntVec3 result)
+        {
+            result = IntVec3.Invalid;
+
+            if (map == null || validator == null)
+                return false;
+
+            if (validator(map, desiredCell))
+            {
+                result = desiredCell;
+                return true;
+            }
+
+            int cellCount = GenRadial.NumCellsInRadius(maxRadius);
+            for (int i = 0; i < cellCount; i++)
+            {
+                IntVec3 cell = desiredCell + GenRadial.RadialPattern[i];
+                if (!validator(map, cell))
+                    continue;
+
+                result = cell;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool IsCellUsableForThing(Map map, IntVec3 cell)
+        {
+            if (map == null || !cell.InBounds(map))
+                return false;
+
+            if (map.fogGrid != null && map.fogGrid.IsFogged(cell))
+                return false;
+
+            if (!cell.Walkable(map))
+                return false;
+
+            return true;
+        }
+
+        private static bool IsCellUsableForPawn(Map map, IntVec3 cell)
+        {
+            if (!IsCellUsableForThing(map, cell))
+                return false;
+
+            List<Thing> things = map.thingGrid.ThingsListAt(cell);
+            for (int i = 0; i < things.Count; i++)
+            {
+                Thing thing = things[i];
+                if (thing == null || thing.Destroyed)
+                    continue;
+
+                if (thing is Pawn)
+                    return false;
+
+                if (thing.def != null && thing.def.passability == Traversability.Impassable)
+                    return false;
+            }
+
+            return true;
         }
     }
 
