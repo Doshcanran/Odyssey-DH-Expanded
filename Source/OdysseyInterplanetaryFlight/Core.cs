@@ -423,11 +423,11 @@ namespace InterstellarOdyssey
         }
     }
 
+
     public static class ShipValidationUtility
     {
         private const int MinimumCrew = 1;
         private const float MinimumTotalFuel = 10f;
-
 
         public static ShipValidationReport ValidateForLaunch(Thing shipAnchor)
         {
@@ -453,7 +453,6 @@ namespace InterstellarOdyssey
             return report;
         }
 
-
         private static void ValidateRequiredSystems(ShipClusterData cluster, ShipValidationReport report)
         {
             bool hasCore = HasCore(cluster);
@@ -478,7 +477,6 @@ namespace InterstellarOdyssey
             if (!hasHull)
                 report.Error("Не найден корабельный корпус/палуба.");
         }
-
 
         private static void ValidatePower(ShipClusterData cluster, ShipValidationReport report)
         {
@@ -506,7 +504,10 @@ namespace InterstellarOdyssey
             });
 
             bool powerOk = terminalPowered && hasAnyPoweredCritical;
-            string powerDetails = powerOk ? "критические системы активны" : (!terminalPowered ? "терминал без питания" : "критические системы не запитаны");
+            string powerDetails = powerOk
+                ? "критические системы активны"
+                : (!terminalPowered ? "терминал без питания" : "критические системы не запитаны");
+
             report.AddCheck("Есть питание", powerOk, powerDetails);
 
             if (!terminalPowered)
@@ -515,7 +516,6 @@ namespace InterstellarOdyssey
             if (!hasAnyPoweredCritical)
                 report.Error("Критические системы корабля не запитаны.");
         }
-
 
         private static void ValidateCrew(ShipClusterData cluster, ShipValidationReport report)
         {
@@ -529,58 +529,40 @@ namespace InterstellarOdyssey
                 p.RaceProps.Humanlike);
 
             bool ok = crewCount >= MinimumCrew;
-            report.AddCheck("Есть минимальный экипаж", ok, ok ? ("экипаж: " + crewCount) : ("нужно минимум " + MinimumCrew + ", сейчас " + crewCount));
+            report.AddCheck("Есть минимальный экипаж", ok,
+                ok ? ("экипаж: " + crewCount) : ("нужно минимум " + MinimumCrew + ", сейчас " + crewCount));
 
             if (!ok)
                 report.Error("Недостаточно экипажа. Минимум: " + MinimumCrew + ".");
         }
 
-
         private static void ValidateFuel(ShipClusterData cluster, ShipValidationReport report)
         {
-            float totalFuel = 0f;
-            bool hasAnyFuelSystem = false;
-            int emptyModules = 0;
+            ShipPropulsionReport propulsion = ShipPropulsionUtility.Evaluate(cluster, null, null);
 
-            foreach (Thing thing in cluster.structuralThings)
-            {
-                if (thing == null)
-                    continue;
+            bool hasFuel = propulsion.totalFuel >= MinimumTotalFuel;
+            bool hasMass = propulsion.shipMass > 0.1f;
+            bool hasThrust = propulsion.thrust > 0.001f && propulsion.hasEnoughThrust;
+            bool hasRange = propulsion.maxRange > 0.1f;
 
-                CompRefuelable refuelable = thing.TryGetComp<CompRefuelable>();
-                if (refuelable == null)
-                    continue;
+            report.AddCheck("Есть запас топлива", hasFuel, "доступно: " + propulsion.totalFuel.ToString("0.#"));
+            report.AddCheck("Масса корабля рассчитана", hasMass, "масса: " + propulsion.shipMass.ToString("0.#"));
+            report.AddCheck("Достаточная тяга", hasThrust,
+                "тяга: " + propulsion.thrust.ToString("0.#") + ", отношение масса/тяга: " + propulsion.MassToThrustRatio.ToString("0.##"));
+            report.AddCheck("Максимальная дальность", hasRange, "дальность: " + propulsion.maxRange.ToString("0.#"));
 
-                if (IsEngine(thing) || IsCore(thing) || IsFuelTank(thing))
-                {
-                    hasAnyFuelSystem = true;
-                    totalFuel += refuelable.Fuel;
-
-                    if (refuelable.Fuel <= 0.01f)
-                    {
-                        emptyModules++;
-                        report.Error("Пустой топливный модуль: " + thing.LabelCap + ".");
-                    }
-                }
-            }
-
-            bool fuelOk = hasAnyFuelSystem && totalFuel >= MinimumTotalFuel && emptyModules == 0;
-            string fuelDetails = !hasAnyFuelSystem
-                ? "топливная система не найдена"
-                : ("топливо: " + totalFuel.ToString("0.#") + (emptyModules > 0 ? ", пустых модулей: " + emptyModules : string.Empty));
-
-            report.AddCheck("Есть запас топлива", fuelOk, fuelDetails);
-
-            if (!hasAnyFuelSystem)
-            {
-                report.Error("Не найдена топливная система корабля.");
-                return;
-            }
-
-            if (totalFuel < MinimumTotalFuel)
+            if (!hasFuel)
                 report.Error("Недостаточный запас топлива. Нужно минимум " + MinimumTotalFuel.ToString("0.#") + ".");
-        }
 
+            if (!hasMass)
+                report.Error("Не удалось рассчитать массу корабля.");
+
+            if (!hasThrust)
+                report.Error("Недостаточная тяга для массы корабля.");
+
+            if (!hasRange)
+                report.Warning("Не удалось определить максимальную дальность корабля.");
+        }
 
         private static void ValidateHullIntegrity(ShipClusterData cluster, ShipValidationReport report)
         {
@@ -620,7 +602,10 @@ namespace InterstellarOdyssey
             }
 
             bool sealedHull = unroofed.Count == 0 && breaches.Count == 0;
-            string hullDetails = sealedHull ? "утечек не найдено" : ("без крыши: " + unroofed.Count + ", пробоин: " + breaches.Count);
+            string hullDetails = sealedHull
+                ? "утечек не найдено"
+                : ("без крыши: " + unroofed.Count + ", пробоин: " + breaches.Count);
+
             report.AddCheck("Корпус герметичен", sealedHull, hullDetails);
 
             if (unroofed.Count > 0)
@@ -629,7 +614,6 @@ namespace InterstellarOdyssey
             if (breaches.Count > 0)
                 report.Error("Корпус негерметичен: обнаружены пробоины/открытые участки периметра (" + breaches.Count + ").");
         }
-
 
         private static void ValidateForeignPawns(ShipClusterData cluster, ShipValidationReport report)
         {
@@ -641,20 +625,25 @@ namespace InterstellarOdyssey
                 !p.IsPrisonerOfColony).ToList();
 
             bool ok = foreign.Count == 0;
-            string details = ok ? "посторонних нет" : string.Join(", ", foreign.Take(5).Select(p => p.LabelShortCap)) + (foreign.Count > 5 ? " ..." : string.Empty);
+            string details = ok
+                ? "посторонних нет"
+                : string.Join(", ", foreign.Take(5).Select(p => p.LabelShortCap)) + (foreign.Count > 5 ? " ..." : string.Empty);
+
             report.AddCheck("Нет чужих пешек/животных", ok, details);
 
             if (!ok)
                 report.Error("На борту есть посторонние: " + details + ".");
         }
 
-
         private static void ValidateForbiddenObjects(ShipClusterData cluster, ShipValidationReport report)
         {
             List<Thing> forbidden = cluster.allBuildings.Where(IsForbiddenObjectForLaunch).ToList();
 
             bool ok = forbidden.Count == 0;
-            string details = ok ? "недопустимых построек нет" : string.Join(", ", forbidden.Take(5).Select(t => t.LabelCap)) + (forbidden.Count > 5 ? " ..." : string.Empty);
+            string details = ok
+                ? "недопустимых построек нет"
+                : string.Join(", ", forbidden.Take(5).Select(t => t.LabelCap)) + (forbidden.Count > 5 ? " ..." : string.Empty);
+
             report.AddCheck("Нет запрещённых построек", ok, details);
 
             if (!ok)
@@ -663,17 +652,17 @@ namespace InterstellarOdyssey
 
         private static bool HasCore(ShipClusterData cluster)
         {
-            return cluster.structuralThings.Any(IsCore);
+            return cluster != null && cluster.structuralThings.Any(IsCore);
         }
 
         private static bool HasEngine(ShipClusterData cluster)
         {
-            return cluster.structuralThings.Any(IsEngine);
+            return cluster != null && cluster.structuralThings.Any(IsEngine);
         }
 
         private static bool HasNavigationConsole(ShipClusterData cluster)
         {
-            return cluster.structuralThings.Any(IsNavigationConsole);
+            return cluster != null && cluster.structuralThings.Any(IsNavigationConsole);
         }
 
         private static bool IsCore(Thing thing)
@@ -688,13 +677,6 @@ namespace InterstellarOdyssey
             string defName = thing?.def?.defName ?? string.Empty;
             string lower = defName.ToLowerInvariant();
             return lower.Contains("gravengine") || lower.Contains("thruster") || lower.Contains("engine");
-        }
-
-        private static bool IsFuelTank(Thing thing)
-        {
-            string defName = thing?.def?.defName ?? string.Empty;
-            string lower = defName.ToLowerInvariant();
-            return lower.Contains("chemfueltank") || lower.Contains("fueltank") || lower.Contains("tank");
         }
 
         private static bool IsNavigationConsole(Thing thing)
@@ -748,6 +730,278 @@ namespace InterstellarOdyssey
             }
 
             return false;
+        }
+    }
+
+    public class ShipPropulsionReport
+    {
+        public float shipMass;
+        public float thrust;
+        public float totalFuel;
+        public float fuelNeeded;
+        public float maxRange;
+        public float travelDays;
+        public float accelerationFactor;
+        public bool hasEnoughFuel;
+        public bool hasEnoughThrust;
+        public string blockingReason;
+
+        public float MassToThrustRatio
+        {
+            get
+            {
+                if (thrust <= 0.001f)
+                    return 9999f;
+
+                return shipMass / thrust;
+            }
+        }
+
+        public string SummaryLine
+        {
+            get
+            {
+                return "Масса: " + shipMass.ToString("0.#") +
+                       " | Тяга: " + thrust.ToString("0.#") +
+                       " | Топливо: " + totalFuel.ToString("0.#") +
+                       " | Дальность: " + maxRange.ToString("0.#");
+            }
+        }
+    }
+
+    public static class ShipPropulsionUtility
+    {
+        private const float BaseFuelPerDistance = 0.55f;
+        private const float BaseMassDivisor = 140f;
+        private const float BaseThrustDivisor = 65f;
+        private const float MinFuelCost = 2f;
+        private const float MinThrustForLaunch = 8f;
+        private const float MaxMassToThrustRatio = 18f;
+        private const float DefaultPawnMass = 35f;
+        private const float DefaultItemMass = 1f;
+
+        public static ShipPropulsionReport Evaluate(Thing shipAnchor, OrbitalNode source, OrbitalNode destination)
+        {
+            if (!ShipCaptureUtility.TryCollectShipCluster(shipAnchor, out ShipClusterData cluster))
+            {
+                return new ShipPropulsionReport
+                {
+                    blockingReason = "Не удалось определить кластер корабля.",
+                    hasEnoughFuel = false,
+                    hasEnoughThrust = false
+                };
+            }
+
+            return Evaluate(cluster, source, destination);
+        }
+
+        public static ShipPropulsionReport Evaluate(ShipClusterData cluster, OrbitalNode source, OrbitalNode destination)
+        {
+            ShipPropulsionReport report = new ShipPropulsionReport();
+            if (cluster == null)
+            {
+                report.blockingReason = "Нет данных о корабле.";
+                return report;
+            }
+
+            report.shipMass = CalculateShipMass(cluster);
+            report.thrust = CalculateTotalThrust(cluster);
+            report.totalFuel = CalculateTotalFuel(cluster);
+
+            float distance = Mathf.Max(0f, OrbitalMath.Distance(source, destination));
+            report.accelerationFactor = Mathf.Clamp01(report.thrust / Mathf.Max(1f, report.shipMass * 0.22f));
+            float speedFactor = Mathf.Max(0.18f, report.thrust / Mathf.Max(25f, report.shipMass));
+            report.travelDays = Mathf.Max(0.2f, distance / Mathf.Max(10f, 45f * speedFactor));
+
+            float massFactor = Mathf.Max(0.35f, report.shipMass / BaseMassDivisor);
+            float thrustFactor = Mathf.Max(0.35f, report.thrust / BaseThrustDivisor);
+
+            report.fuelNeeded = Mathf.Max(MinFuelCost, distance * BaseFuelPerDistance * massFactor / thrustFactor);
+            report.maxRange = report.totalFuel <= 0f
+                ? 0f
+                : (report.totalFuel * thrustFactor) / (BaseFuelPerDistance * Mathf.Max(0.35f, massFactor));
+
+            report.hasEnoughThrust = report.thrust >= MinThrustForLaunch && report.MassToThrustRatio <= MaxMassToThrustRatio;
+            report.hasEnoughFuel = report.totalFuel + 0.001f >= report.fuelNeeded;
+
+            if (!report.hasEnoughThrust)
+                report.blockingReason = "Недостаточная тяга для массы корабля.";
+
+            if (report.hasEnoughThrust && !report.hasEnoughFuel)
+                report.blockingReason = "Недостаточно топлива для выбранного маршрута.";
+
+            return report;
+        }
+
+        public static void ConsumeFuel(ShipClusterData cluster, float fuelCost)
+        {
+            if (cluster == null || fuelCost <= 0.001f)
+                return;
+
+            List<CompRefuelable> tanks = new List<CompRefuelable>();
+
+            for (int i = 0; i < cluster.structuralThings.Count; i++)
+            {
+                Thing thing = cluster.structuralThings[i];
+                if (thing == null)
+                    continue;
+
+                CompRefuelable refuelable = thing.TryGetComp<CompRefuelable>();
+                if (refuelable == null)
+                    continue;
+
+                if (IsFuelBearingPart(thing))
+                    tanks.Add(refuelable);
+            }
+
+            float remaining = fuelCost;
+
+            for (int i = 0; i < tanks.Count && remaining > 0.001f; i++)
+            {
+                CompRefuelable tank = tanks[i];
+                if (tank == null || tank.Fuel <= 0f)
+                    continue;
+
+                float take = Mathf.Min(tank.Fuel, remaining);
+                tank.ConsumeFuel(take);
+                remaining -= take;
+            }
+        }
+
+        private static float CalculateShipMass(ShipClusterData cluster)
+        {
+            float total = 0f;
+
+            foreach (Thing thing in cluster.structuralThings)
+                total += GetThingMass(thing);
+
+            foreach (Thing thing in cluster.items)
+                total += GetThingMass(thing);
+
+            foreach (Pawn pawn in cluster.pawns)
+                total += GetPawnMass(pawn);
+
+            return Mathf.Max(1f, total);
+        }
+
+        private static float CalculateTotalThrust(ShipClusterData cluster)
+        {
+            float total = 0f;
+
+            foreach (Thing thing in cluster.structuralThings)
+            {
+                if (thing == null || !IsEnginePart(thing))
+                    continue;
+
+                total += GetEngineThrust(thing);
+            }
+
+            return total;
+        }
+
+        private static float CalculateTotalFuel(ShipClusterData cluster)
+        {
+            float total = 0f;
+
+            foreach (Thing thing in cluster.structuralThings)
+            {
+                if (thing == null)
+                    continue;
+
+                CompRefuelable refuelable = thing.TryGetComp<CompRefuelable>();
+                if (refuelable == null)
+                    continue;
+
+                if (IsFuelBearingPart(thing))
+                    total += refuelable.Fuel;
+            }
+
+            return total;
+        }
+
+        private static float GetThingMass(Thing thing)
+        {
+            if (thing == null || thing.def == null)
+                return 0f;
+
+            try
+            {
+                if (thing.def.statBases != null && thing.def.statBases.Any(s => s.stat == StatDefOf.Mass))
+                    return Mathf.Max(0f, thing.GetStatValue(StatDefOf.Mass, true) * Mathf.Max(1, thing.stackCount));
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                if (thing.def.BaseMass > 0f)
+                    return Mathf.Max(0f, thing.def.BaseMass * Mathf.Max(1, thing.stackCount));
+            }
+            catch
+            {
+            }
+
+            return DefaultItemMass * Mathf.Max(1, thing.stackCount);
+        }
+
+        private static float GetPawnMass(Pawn pawn)
+        {
+            if (pawn == null || pawn.Destroyed)
+                return 0f;
+
+            try
+            {
+                if (pawn.def != null && pawn.def.statBases != null && pawn.def.statBases.Any(s => s.stat == StatDefOf.Mass))
+                    return Mathf.Max(1f, pawn.GetStatValue(StatDefOf.Mass, true));
+            }
+            catch
+            {
+            }
+
+            return DefaultPawnMass;
+        }
+
+        private static float GetEngineThrust(Thing thing)
+        {
+            string defName = (thing.def?.defName ?? string.Empty).ToLowerInvariant();
+            string label = (thing.def?.label ?? string.Empty).ToLowerInvariant();
+
+            float thrust = 0f;
+
+            if (defName.Contains("smallthruster") || label.Contains("small thruster"))
+                thrust = 32f;
+            else if (defName.Contains("largethruster") || label.Contains("large thruster"))
+                thrust = 72f;
+            else if (defName.Contains("thruster") || label.Contains("thruster"))
+                thrust = 45f;
+            else if (defName.Contains("gravengine") || label.Contains("grav engine"))
+                thrust = 85f;
+            else if (defName.Contains("engine") || label.Contains("engine"))
+                thrust = 50f;
+            else
+                thrust = 35f;
+
+            CompPowerTrader power = thing.TryGetComp<CompPowerTrader>();
+            if (power != null && !power.PowerOn)
+                thrust *= 0.15f;
+
+            if (thing.HitPoints > 0 && thing.MaxHitPoints > 0)
+                thrust *= Mathf.Clamp01((float)thing.HitPoints / thing.MaxHitPoints);
+
+            return thrust;
+        }
+
+        private static bool IsEnginePart(Thing thing)
+        {
+            string defName = (thing?.def?.defName ?? string.Empty).ToLowerInvariant();
+            return defName.Contains("gravengine") || defName.Contains("thruster") || defName.Contains("engine");
+        }
+
+        private static bool IsFuelBearingPart(Thing thing)
+        {
+            string defName = (thing?.def?.defName ?? string.Empty).ToLowerInvariant();
+            return defName.Contains("chemfueltank") || defName.Contains("fueltank") || defName.Contains("tank") || IsEnginePart(thing) || defName.Contains("gravcore");
         }
     }
 
@@ -2279,13 +2533,34 @@ namespace InterstellarOdyssey
                 return false;
             }
 
+            if (!ShipCaptureUtility.TryCollectShipCluster(shipAnchor, out ShipClusterData launchCluster))
+            {
+                Messages.Message("Не удалось определить состав корабля перед стартом.", MessageTypeDefOf.RejectInput, false);
+                return false;
+            }
+
+            ShipPropulsionReport propulsion = ShipPropulsionUtility.Evaluate(launchCluster, current, destination);
+            if (!propulsion.hasEnoughThrust)
+            {
+                Messages.Message("Недостаточная тяга: корабль слишком тяжёлый для текущих двигателей.", MessageTypeDefOf.RejectInput, false);
+                return false;
+            }
+
+            if (!propulsion.hasEnoughFuel)
+            {
+                Messages.Message("Недостаточно топлива для маршрута. Нужно " + propulsion.fuelNeeded.ToString("0.#") + ", доступно " + propulsion.totalFuel.ToString("0.#") + ".", MessageTypeDefOf.RejectInput, false);
+                return false;
+            }
+
+            ShipPropulsionUtility.ConsumeFuel(launchCluster, propulsion.fuelNeeded);
+
             if (!ShipCaptureUtility.TryCaptureAndDespawnShip(shipAnchor, current != null ? current.id : "homeworld", out ShipSnapshot snapshot))
             {
                 Messages.Message("Не удалось захватить корабль для перелёта.", MessageTypeDefOf.RejectInput, false);
                 return false;
             }
 
-            float days = Mathf.Max(0.2f, OrbitalMath.Distance(current, destination) / 45f);
+            float days = propulsion.travelDays > 0f ? propulsion.travelDays : Mathf.Max(0.2f, OrbitalMath.Distance(current, destination) / 45f);
             int durationTicks = Mathf.Max(2500, Mathf.RoundToInt(days * GenDate.TicksPerDay));
 
             ShipTransitRecord record = new ShipTransitRecord
@@ -2302,7 +2577,7 @@ namespace InterstellarOdyssey
             };
 
             activeTravels.Add(record);
-            Messages.Message("Начат межпланетный перелёт: " + record.shipLabel + " → " + ResolveNodeLabel(destination), MessageTypeDefOf.PositiveEvent, false);
+            Messages.Message("Начат межпланетный перелёт: " + record.shipLabel + " → " + ResolveNodeLabel(destination) + ". Израсходовано топлива: " + propulsion.fuelNeeded.ToString("0.#"), MessageTypeDefOf.PositiveEvent, false);
             return true;
         }
 
@@ -2532,7 +2807,7 @@ namespace InterstellarOdyssey
             Rect header = new Rect(inner.x, inner.y, inner.width, 25f);
             Widgets.Label(header, "Пункты назначения");
 
-            Rect viewRect = new Rect(inner.x, header.yMax + 8f, inner.width - 16f, Mathf.Max(200f, Data.nodes.Count * 70f));
+            Rect viewRect = new Rect(inner.x, header.yMax + 8f, inner.width - 16f, Mathf.Max(240f, Data.nodes.Count * 94f));
             Rect outRect = new Rect(inner.x, header.yMax + 8f, inner.width, inner.height - 35f);
 
             Widgets.BeginScrollView(outRect, ref scrollPos, viewRect);
@@ -2540,19 +2815,24 @@ namespace InterstellarOdyssey
             float curY = viewRect.y;
             foreach (OrbitalNode node in Data.nodes)
             {
-                Rect row = new Rect(viewRect.x, curY, viewRect.width, 60f);
+                Rect row = new Rect(viewRect.x, curY, viewRect.width, 84f);
                 Widgets.DrawHighlightIfMouseover(row);
                 Widgets.DrawBoxSolid(row, new Color(1f, 1f, 1f, 0.04f));
 
                 Rect labelRect = new Rect(row.x + 10f, row.y + 8f, row.width - 160f, 24f);
                 Widgets.Label(labelRect, Data.ResolveNodeLabel(node));
 
-                float days = Mathf.Max(0.25f, OrbitalMath.Distance(current, node) / 45f);
+                ShipPropulsionReport propulsion = ShipPropulsionUtility.Evaluate(ship, current, node);
+                float days = propulsion.travelDays > 0f ? propulsion.travelDays : Mathf.Max(0.25f, OrbitalMath.Distance(current, node) / 45f);
+
                 Rect timeRect = new Rect(row.x + 10f, row.y + 30f, row.width - 160f, 24f);
-                Widgets.Label(timeRect, "Время полёта: " + days.ToString("0.0") + " д.");
+                Widgets.Label(timeRect, "Время: " + days.ToString("0.0") + " д. | Топливо: " + propulsion.fuelNeeded.ToString("0.#") + "/" + propulsion.totalFuel.ToString("0.#"));
+
+                Rect statsRect = new Rect(row.x + 10f, row.y + 48f, row.width - 160f, 24f);
+                Widgets.Label(statsRect, "Масса: " + propulsion.shipMass.ToString("0.#") + " | Тяга: " + propulsion.thrust.ToString("0.#") + " | Дальность: " + propulsion.maxRange.ToString("0.#"));
 
                 Rect buttonRect = new Rect(row.xMax - 130f, row.y + 15f, 120f, 30f);
-                bool disabled = Data.IsShipTravelling(ship) || (current != null && current.id == node.id);
+                bool disabled = Data.IsShipTravelling(ship) || (current != null && current.id == node.id) || !propulsion.hasEnoughFuel || !propulsion.hasEnoughThrust;
 
                 if (disabled)
                     GUI.color = Color.gray;
@@ -2564,8 +2844,14 @@ namespace InterstellarOdyssey
                         Close();
                 }
 
+                if (!propulsion.hasEnoughFuel || !propulsion.hasEnoughThrust)
+                {
+                    GUI.color = new Color(1f, 0.55f, 0.55f);
+                    Widgets.Label(new Rect(row.xMax - 170f, row.y + 50f, 160f, 24f), propulsion.blockingReason ?? "Маршрут недоступен");
+                }
+
                 GUI.color = Color.white;
-                curY += 68f;
+                curY += 92f;
             }
 
             Widgets.EndScrollView();
