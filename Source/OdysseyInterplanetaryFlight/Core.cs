@@ -98,6 +98,25 @@ namespace InterstellarOdyssey
         AsteroidBelt
     }
 
+    public enum ShipLandingMode
+    {
+        Precise,
+        Emergency,
+        OrbitalDrop,
+        UnpreparedSurface,
+        StationDocking
+    }
+
+    public enum TransitEventType
+    {
+        EngineBreakdown,
+        EnergyLeak,
+        SolarStorm,
+        Drift,
+        PirateSignal,
+        DebrisDiscovery
+    }
+
     public class OrbitalNode : IExposable
     {
         public string id;
@@ -105,6 +124,8 @@ namespace InterstellarOdyssey
         public OrbitalNodeType type;
         public float angle;
         public float radius;
+        public int generatedTile = -1;
+        public string generatedWorldObjectLabel;
 
         public OrbitalNode()
         {
@@ -126,6 +147,26 @@ namespace InterstellarOdyssey
             Scribe_Values.Look(ref type, "type", OrbitalNodeType.Planet);
             Scribe_Values.Look(ref angle, "angle", 0f);
             Scribe_Values.Look(ref radius, "radius", 0f);
+            Scribe_Values.Look(ref generatedTile, "generatedTile", -1);
+            Scribe_Values.Look(ref generatedWorldObjectLabel, "generatedWorldObjectLabel");
+        }
+    }
+
+    public class ShipTransitEvent : IExposable
+    {
+        public TransitEventType type;
+        public int tick;
+        public string title;
+        public string description;
+        public float severity;
+
+        public void ExposeData()
+        {
+            Scribe_Values.Look(ref type, "type", TransitEventType.EngineBreakdown);
+            Scribe_Values.Look(ref tick, "tick", 0);
+            Scribe_Values.Look(ref title, "title");
+            Scribe_Values.Look(ref description, "description");
+            Scribe_Values.Look(ref severity, "severity", 0f);
         }
     }
 
@@ -220,6 +261,12 @@ namespace InterstellarOdyssey
         public int arrivalTick;
         public InterstellarTransitStage stage;
         public ShipSnapshot snapshot;
+        public int nextEventTick;
+        public List<ShipTransitEvent> eventLog = new List<ShipTransitEvent>();
+        public ShipLandingMode preferredLandingMode = ShipLandingMode.Precise;
+        public int salvageSteel;
+        public int salvageComponents;
+        public float travelDisruption;
 
         public float Progress
         {
@@ -245,6 +292,15 @@ namespace InterstellarOdyssey
             Scribe_Values.Look(ref arrivalTick, "arrivalTick", 0);
             Scribe_Values.Look(ref stage, "stage", InterstellarTransitStage.None);
             Scribe_Deep.Look(ref snapshot, "snapshot");
+            Scribe_Values.Look(ref nextEventTick, "nextEventTick", 0);
+            Scribe_Collections.Look(ref eventLog, "eventLog", LookMode.Deep);
+            Scribe_Values.Look(ref preferredLandingMode, "preferredLandingMode", ShipLandingMode.Precise);
+            Scribe_Values.Look(ref salvageSteel, "salvageSteel", 0);
+            Scribe_Values.Look(ref salvageComponents, "salvageComponents", 0);
+            Scribe_Values.Look(ref travelDisruption, "travelDisruption", 0f);
+
+            if (eventLog == null)
+                eventLog = new List<ShipTransitEvent>();
         }
     }
 
@@ -2149,9 +2205,246 @@ namespace InterstellarOdyssey
         }
     }
 
+
+
+    public static class ShipTransitEventUtility
+    {
+        private const int MinEventIntervalTicks = 12000;
+        private const int MaxEventIntervalTicks = 26000;
+
+        public static void ScheduleNextEvent(ShipTransitRecord record, int currentTick)
+        {
+            if (record == null)
+                return;
+
+            record.nextEventTick = currentTick + Rand.RangeInclusive(MinEventIntervalTicks, MaxEventIntervalTicks);
+        }
+
+        public static bool TryProcessEvent(WorldComponent_Interstellar data, ShipTransitRecord record)
+        {
+            if (data == null || record == null || record.stage != InterstellarTransitStage.InTransit || Find.TickManager == null)
+                return false;
+
+            int currentTick = Find.TickManager.TicksGame;
+            if (record.nextEventTick <= 0)
+                ScheduleNextEvent(record, currentTick);
+
+            if (currentTick < record.nextEventTick)
+                return false;
+
+            ScheduleNextEvent(record, currentTick);
+
+            if (!Rand.Chance(0.55f))
+                return false;
+
+            ShipTransitEvent transitEvent = GenerateEvent(data, record, currentTick);
+            if (transitEvent == null)
+                return false;
+
+            record.eventLog.Add(transitEvent);
+            if (record.eventLog.Count > 24)
+                record.eventLog.RemoveAt(0);
+
+            Messages.Message(transitEvent.title + ": " + transitEvent.description, MessageTypeDefOf.NeutralEvent, false);
+            return true;
+        }
+
+        private static ShipTransitEvent GenerateEvent(WorldComponent_Interstellar data, ShipTransitRecord record, int currentTick)
+        {
+            float roll = Rand.Value;
+            if (roll < 0.18f)
+                return ApplyEngineBreakdown(record, currentTick);
+
+            if (roll < 0.36f)
+                return ApplyEnergyLeak(record, currentTick);
+
+            if (roll < 0.54f)
+                return ApplySolarStorm(record, currentTick);
+
+            if (roll < 0.72f)
+                return ApplyDrift(record, currentTick);
+
+            if (roll < 0.86f)
+                return ApplyPirateSignal(record, currentTick);
+
+            return ApplyDebrisDiscovery(record, currentTick);
+        }
+
+        private static ShipTransitEvent ApplyEngineBreakdown(ShipTransitRecord record, int currentTick)
+        {
+            int delay = Mathf.RoundToInt(0.22f * GenDate.TicksPerDay);
+            record.arrivalTick += delay;
+            record.travelDisruption += 0.22f;
+
+            return new ShipTransitEvent
+            {
+                type = TransitEventType.EngineBreakdown,
+                tick = currentTick,
+                title = "Поломка двигателя",
+                description = "Тяга временно упала. Прибытие задержано примерно на " + (delay / 2500f).ToString("0.0") + " д.",
+                severity = 0.7f
+            };
+        }
+
+        private static ShipTransitEvent ApplyEnergyLeak(ShipTransitRecord record, int currentTick)
+        {
+            int delay = Mathf.RoundToInt(0.10f * GenDate.TicksPerDay);
+            record.arrivalTick += delay;
+            record.travelDisruption += 0.10f;
+
+            return new ShipTransitEvent
+            {
+                type = TransitEventType.EnergyLeak,
+                tick = currentTick,
+                title = "Утечка энергии",
+                description = "Экипаж перераспределил питание по системам. Полёт слегка замедлился.",
+                severity = 0.35f
+            };
+        }
+
+        private static ShipTransitEvent ApplySolarStorm(ShipTransitRecord record, int currentTick)
+        {
+            int delay = Mathf.RoundToInt(0.16f * GenDate.TicksPerDay);
+            record.arrivalTick += delay;
+            record.travelDisruption += 0.16f;
+
+            return new ShipTransitEvent
+            {
+                type = TransitEventType.SolarStorm,
+                tick = currentTick,
+                title = "Солнечная буря",
+                description = "Корабль вошёл в зону вспышки и был вынужден снизить ход.",
+                severity = 0.55f
+            };
+        }
+
+        private static ShipTransitEvent ApplyDrift(ShipTransitRecord record, int currentTick)
+        {
+            int delay = Mathf.RoundToInt(0.28f * GenDate.TicksPerDay);
+            record.arrivalTick += delay;
+            record.travelDisruption += 0.28f;
+            record.preferredLandingMode = ShipLandingMode.Emergency;
+
+            return new ShipTransitEvent
+            {
+                type = TransitEventType.Drift,
+                tick = currentTick,
+                title = "Дрейф",
+                description = "Корабль отклонился от траектории. Рекомендуется аварийная посадка.",
+                severity = 0.8f
+            };
+        }
+
+        private static ShipTransitEvent ApplyPirateSignal(ShipTransitRecord record, int currentTick)
+        {
+            record.preferredLandingMode = record.preferredLandingMode == ShipLandingMode.Precise
+                ? ShipLandingMode.OrbitalDrop
+                : record.preferredLandingMode;
+
+            return new ShipTransitEvent
+            {
+                type = TransitEventType.PirateSignal,
+                tick = currentTick,
+                title = "Пиратский сигнал",
+                description = "Зафиксирован подозрительный источник на дальней дистанции. Возможна горячая посадка.",
+                severity = 0.45f
+            };
+        }
+
+        private static ShipTransitEvent ApplyDebrisDiscovery(ShipTransitRecord record, int currentTick)
+        {
+            int steel = Rand.RangeInclusive(35, 90);
+            int components = Rand.Chance(0.45f) ? Rand.RangeInclusive(1, 3) : 0;
+            record.salvageSteel += steel;
+            record.salvageComponents += components;
+
+            return new ShipTransitEvent
+            {
+                type = TransitEventType.DebrisDiscovery,
+                tick = currentTick,
+                title = "Находка обломков",
+                description = "Подобраны ценные материалы: стали +" + steel + (components > 0 ? ", компонентов +" + components : string.Empty) + ".",
+                severity = 0.2f
+            };
+        }
+    }
+
+    public static class OrbitalNodeMapUtility
+    {
+        public static Map ResolveOrCreateMapForNode(OrbitalNode node)
+        {
+            if (node == null)
+                return Find.AnyPlayerHomeMap ?? Find.Maps.FirstOrDefault();
+
+            if (node.id == "homeworld")
+                return Find.AnyPlayerHomeMap ?? Find.Maps.FirstOrDefault();
+
+            if (node.generatedTile >= 0)
+            {
+                Map existing = Find.Maps.FirstOrDefault(m => m != null && m.Parent != null && m.Parent.Tile == node.generatedTile);
+                if (existing != null)
+                    return existing;
+            }
+
+            return CreateGeneratedMap(node);
+        }
+
+        private static Map CreateGeneratedMap(OrbitalNode node)
+        {
+            int tile = FindTileForNode(node);
+            node.generatedTile = tile;
+
+            MapParent parent = (MapParent)WorldObjectMaker.MakeWorldObject(WorldObjectDefOf.Settlement);
+            parent.Tile = tile;
+            parent.SetFaction(Faction.OfPlayer);
+            node.generatedWorldObjectLabel = node.label;
+
+            bool hasWorldObjectAtTile = Find.WorldObjects.AllWorldObjects.Any(o => o != null && o.Tile == tile);
+            if (!hasWorldObjectAtTile)
+                Find.WorldObjects.Add(parent);
+
+            IntVec3 size = GetMapSizeForNode(node);
+            MapGeneratorDef genDef = ResolveMapGeneratorDef(node);
+            return MapGenerator.GenerateMap(size, parent, genDef);
+        }
+
+        private static IntVec3 GetMapSizeForNode(OrbitalNode node)
+        {
+            switch (node.type)
+            {
+                case OrbitalNodeType.Station:
+                    return new IntVec3(140, 1, 140);
+                case OrbitalNodeType.Asteroid:
+                case OrbitalNodeType.AsteroidBelt:
+                    return new IntVec3(180, 1, 180);
+                default:
+                    return new IntVec3(220, 1, 220);
+            }
+        }
+
+        private static MapGeneratorDef ResolveMapGeneratorDef(OrbitalNode node)
+        {
+            MapGeneratorDef def =
+                DefDatabase<MapGeneratorDef>.GetNamedSilentFail("Base_Player") ??
+                DefDatabase<MapGeneratorDef>.GetNamedSilentFail("Base_Faction") ??
+                DefDatabase<MapGeneratorDef>.AllDefs.FirstOrDefault();
+
+            return def;
+        }
+
+        private static int FindTileForNode(OrbitalNode node)
+        {
+            Map home = Find.AnyPlayerHomeMap ?? Find.Maps.FirstOrDefault();
+            int baseTile = home != null && home.Parent != null ? home.Parent.Tile : 0;
+            int tileCount = Find.WorldGrid.TilesCount;
+            int offset = Mathf.Abs((node.id ?? "node").GetHashCode());
+            return (baseTile + 17 + (offset % Mathf.Max(1, tileCount - 1))) % Mathf.Max(1, tileCount);
+        }
+    }
+
     public static class ShipLandingUtility
     {
-        public static bool TryRestoreShip(ShipSnapshot snapshot, Map map, IntVec3 targetCenter, out Thing restoredAnchor)
+        public static bool TryRestoreShip(ShipSnapshot snapshot, Map map, IntVec3 targetCenter, ShipLandingMode mode, out Thing restoredAnchor)
         {
             restoredAnchor = null;
 
@@ -2161,10 +2454,42 @@ namespace InterstellarOdyssey
             RestoreTerrain(snapshot, map, targetCenter);
             RestoreBuildings(snapshot, map, targetCenter, ref restoredAnchor);
             RestoreRoofs(snapshot, map, targetCenter);
-            RestoreItems(snapshot, map, targetCenter);
-            RestorePawns(snapshot, map, targetCenter);
+            RestoreItems(snapshot, map, targetCenter, mode);
+            RestorePawns(snapshot, map, targetCenter, mode);
+            ApplyLandingModePostEffects(snapshot, map, targetCenter, mode);
 
             return true;
+        }
+
+        public static bool TryFindLandingCenter(ShipSnapshot snapshot, Map map, ShipLandingMode mode, out IntVec3 center)
+        {
+            center = IntVec3.Invalid;
+            if (snapshot == null || map == null)
+                return false;
+
+            switch (mode)
+            {
+                case ShipLandingMode.StationDocking:
+                    center = map.Center;
+                    return true;
+                case ShipLandingMode.Emergency:
+                    center = CellFinderLoose.RandomCellWith(c => c.InBounds(map) && c.Standable(map), map, 5000);
+                    break;
+                case ShipLandingMode.OrbitalDrop:
+                    center = CellFinderLoose.RandomCellWith(c => c.InBounds(map) && c.Standable(map), map, 3500);
+                    break;
+                case ShipLandingMode.UnpreparedSurface:
+                    center = CellFinderLoose.RandomCellWith(c => c.InBounds(map) && c.Walkable(map), map, 6000);
+                    break;
+                default:
+                    center = CellFinderLoose.RandomCellWith(c => c.InBounds(map) && c.Standable(map) && !c.Fogged(map), map, 2000);
+                    break;
+            }
+
+            if (!center.IsValid)
+                center = map.Center;
+
+            return center.IsValid;
         }
 
         private static void RestoreTerrain(ShipSnapshot snapshot, Map map, IntVec3 targetCenter)
@@ -2267,7 +2592,7 @@ namespace InterstellarOdyssey
             }
         }
 
-        private static void RestoreItems(ShipSnapshot snapshot, Map map, IntVec3 targetCenter)
+        private static void RestoreItems(ShipSnapshot snapshot, Map map, IntVec3 targetCenter, ShipLandingMode mode)
         {
             if (snapshot.items == null)
                 return;
@@ -2283,6 +2608,8 @@ namespace InterstellarOdyssey
                     continue;
 
                 IntVec3 desiredCell = targetCenter + entry.offset;
+                if (mode == ShipLandingMode.OrbitalDrop || mode == ShipLandingMode.Emergency)
+                    desiredCell += new IntVec3(Rand.RangeInclusive(-2, 2), 0, Rand.RangeInclusive(-2, 2));
                 if (!TryFindRestoreCellForThing(map, desiredCell, out IntVec3 spawnCell))
                 {
                     Log.Warning("[InterstellarOdyssey] RestoreItems skipped for " + thing.LabelCap + ": no valid spawn cell near " + desiredCell);
@@ -2301,7 +2628,7 @@ namespace InterstellarOdyssey
             }
         }
 
-        private static void RestorePawns(ShipSnapshot snapshot, Map map, IntVec3 targetCenter)
+        private static void RestorePawns(ShipSnapshot snapshot, Map map, IntVec3 targetCenter, ShipLandingMode mode)
         {
             if (snapshot.pawns == null)
                 return;
@@ -2317,6 +2644,8 @@ namespace InterstellarOdyssey
                     continue;
 
                 IntVec3 desiredCell = targetCenter + entry.offset;
+                if (mode == ShipLandingMode.OrbitalDrop || mode == ShipLandingMode.Emergency)
+                    desiredCell += new IntVec3(Rand.RangeInclusive(-3, 3), 0, Rand.RangeInclusive(-3, 3));
                 if (!TryFindRestoreCellForPawn(map, desiredCell, out IntVec3 spawnCell))
                 {
                     Log.Warning("[InterstellarOdyssey] RestorePawns skipped for " + pawn.LabelCap + ": no valid spawn cell near " + desiredCell);
@@ -2331,6 +2660,67 @@ namespace InterstellarOdyssey
                 {
                     Log.Warning("[InterstellarOdyssey] RestorePawns failed for " + pawn.LabelCap + " at " + spawnCell + ": " + ex.Message);
                 }
+            }
+        }
+
+
+        private static void ApplyLandingModePostEffects(ShipSnapshot snapshot, Map map, IntVec3 targetCenter, ShipLandingMode mode)
+        {
+            if (mode == ShipLandingMode.Emergency && snapshot != null && snapshot.buildings != null)
+            {
+                for (int i = 0; i < snapshot.buildings.Count; i++)
+                {
+                    Thing building = snapshot.buildings[i]?.thing;
+                    if (building == null || !building.Spawned || building.Destroyed)
+                        continue;
+
+                    if (Rand.Chance(0.14f))
+                        building.TakeDamage(new DamageInfo(DamageDefOf.Blunt, Rand.RangeInclusive(2, 10)));
+                }
+            }
+
+            if (mode == ShipLandingMode.OrbitalDrop)
+                Messages.Message("Корабль завершил орбитальный дроп. Экипаж и груз рассредоточены вокруг точки входа.", MessageTypeDefOf.NeutralEvent, false);
+            else if (mode == ShipLandingMode.UnpreparedSurface)
+                Messages.Message("Посадка выполнена на неподготовленную поверхность.", MessageTypeDefOf.NeutralEvent, false);
+            else if (mode == ShipLandingMode.StationDocking)
+                Messages.Message("Корабль успешно состыковался со станцией.", MessageTypeDefOf.PositiveEvent, false);
+            else if (mode == ShipLandingMode.Emergency)
+                Messages.Message("Выполнена аварийная посадка. Возможны повреждения корпуса.", MessageTypeDefOf.ThreatSmall, false);
+        }
+
+        public static void SpawnTransitLoot(ShipTransitRecord record, Map map, IntVec3 center)
+        {
+            if (record == null || map == null)
+                return;
+
+            if (record.salvageSteel > 0)
+                SpawnLootStack(ThingDefOf.Steel, record.salvageSteel, map, center);
+
+            ThingDef componentDef = DefDatabase<ThingDef>.GetNamedSilentFail("ComponentIndustrial");
+            if (componentDef != null && record.salvageComponents > 0)
+                SpawnLootStack(componentDef, record.salvageComponents, map, center);
+
+            record.salvageSteel = 0;
+            record.salvageComponents = 0;
+        }
+
+        private static void SpawnLootStack(ThingDef def, int count, Map map, IntVec3 center)
+        {
+            if (def == null || count <= 0 || map == null)
+                return;
+
+            int remaining = count;
+            while (remaining > 0)
+            {
+                Thing stack = ThingMaker.MakeThing(def);
+                int stackCount = Mathf.Min(remaining, def.stackLimit > 0 ? def.stackLimit : remaining);
+                stack.stackCount = stackCount;
+
+                if (TryFindRestoreCellForThing(map, center + new IntVec3(Rand.RangeInclusive(-4, 4), 0, Rand.RangeInclusive(-4, 4)), out IntVec3 cell))
+                    GenSpawn.Spawn(stack, cell, map, WipeMode.Vanish);
+
+                remaining -= stackCount;
             }
         }
 
@@ -2437,6 +2827,8 @@ namespace InterstellarOdyssey
                 if (travel.stage != InterstellarTransitStage.InTransit)
                     continue;
 
+                ShipTransitEventUtility.TryProcessEvent(this, travel);
+
                 if (Find.TickManager.TicksGame >= travel.arrivalTick)
                     Arrive(travel);
             }
@@ -2469,6 +2861,7 @@ namespace InterstellarOdyssey
             nodes.Add(new OrbitalNode("nivalis", "Nivalis", OrbitalNodeType.Planet, 320f, 185f));
             nodes.Add(new OrbitalNode("station", "Орбитальная станция", OrbitalNodeType.Station, 75f, 45f));
             nodes.Add(new OrbitalNode("belt", "Пояс астероидов", OrbitalNodeType.AsteroidBelt, 235f, 230f));
+            nodes.Add(new OrbitalNode("hekate", "Геката", OrbitalNodeType.Asteroid, 25f, 205f));
 
             generated = true;
         }
@@ -2573,32 +2966,47 @@ namespace InterstellarOdyssey
                 departureTick = Find.TickManager.TicksGame,
                 arrivalTick = Find.TickManager.TicksGame + durationTicks,
                 stage = InterstellarTransitStage.InTransit,
-                snapshot = snapshot
+                snapshot = snapshot,
+                preferredLandingMode = ShipLandingMode.Precise
             };
 
+            ShipTransitEventUtility.ScheduleNextEvent(record, Find.TickManager.TicksGame);
             activeTravels.Add(record);
             Messages.Message("Начат межпланетный перелёт: " + record.shipLabel + " → " + ResolveNodeLabel(destination) + ". Израсходовано топлива: " + propulsion.fuelNeeded.ToString("0.#"), MessageTypeDefOf.PositiveEvent, false);
             return true;
         }
 
-        public bool TryLandShip(ShipTransitRecord record, Map map)
+        public bool TryLandShip(ShipTransitRecord record, Map map, ShipLandingMode mode)
         {
             if (record == null || map == null || record.snapshot == null)
                 return false;
 
-            IntVec3 center = CellFinderLoose.RandomCellWith(c => c.Standable(map), map, 2000);
-            if (!center.IsValid)
+            if (!ShipLandingUtility.TryFindLandingCenter(record.snapshot, map, mode, out IntVec3 center))
                 center = map.Center;
 
-            if (!ShipLandingUtility.TryRestoreShip(record.snapshot, map, center, out Thing restoredAnchor))
+            if (!ShipLandingUtility.TryRestoreShip(record.snapshot, map, center, mode, out Thing restoredAnchor))
                 return false;
+
+            ShipLandingUtility.SpawnTransitLoot(record, map, center);
 
             record.stage = InterstellarTransitStage.None;
             activeTravels.Remove(record);
 
             OrbitalNode destination = GetNodeById(record.destinationId);
-            Messages.Message("Корабль " + (record.shipLabel ?? "без названия") + " совершил посадку у цели " + ResolveNodeLabel(destination) + ".", MessageTypeDefOf.PositiveEvent, false);
+            Messages.Message("Корабль " + (record.shipLabel ?? "без названия") + " совершил посадку у цели " + ResolveNodeLabel(destination) + " [" + ResolveLandingModeLabel(mode) + "].", MessageTypeDefOf.PositiveEvent, false);
             return true;
+        }
+
+        public string ResolveLandingModeLabel(ShipLandingMode mode)
+        {
+            switch (mode)
+            {
+                case ShipLandingMode.Emergency: return "аварийная";
+                case ShipLandingMode.OrbitalDrop: return "орбитальный дроп";
+                case ShipLandingMode.UnpreparedSurface: return "неподготовленная поверхность";
+                case ShipLandingMode.StationDocking: return "стыковка";
+                default: return "точная";
+            }
         }
 
         private void Arrive(ShipTransitRecord record)
@@ -2608,7 +3016,10 @@ namespace InterstellarOdyssey
                 record.snapshot.currentNodeId = record.destinationId;
 
             OrbitalNode destination = GetNodeById(record.destinationId);
-            Messages.Message("Корабль вышел на орбиту цели: " + ResolveNodeLabel(destination), MessageTypeDefOf.PositiveEvent, false);
+            if (destination != null && destination.id != "homeworld")
+                OrbitalNodeMapUtility.ResolveOrCreateMapForNode(destination);
+
+            Messages.Message("Корабль вышел на орбиту цели: " + ResolveNodeLabel(destination) + ". Рекомендуемый режим посадки: " + ResolveLandingModeLabel(record.preferredLandingMode) + ".", MessageTypeDefOf.PositiveEvent, false);
         }
     }
 
@@ -2861,13 +3272,17 @@ namespace InterstellarOdyssey
     public class Window_ShipLanding : Window
     {
         private readonly ShipTransitRecord travel;
+        private readonly WorldComponent_Interstellar data;
         private Vector2 scrollPos;
+        private ShipLandingMode selectedMode;
 
-        public override Vector2 InitialSize => new Vector2(760f, 560f);
+        public override Vector2 InitialSize => new Vector2(840f, 620f);
 
         public Window_ShipLanding(ShipTransitRecord travel)
         {
             this.travel = travel;
+            data = Find.World.GetComponent<WorldComponent_Interstellar>();
+            selectedMode = travel != null ? travel.preferredLandingMode : ShipLandingMode.Precise;
             forcePause = true;
             doCloseX = true;
             doCloseButton = true;
@@ -2878,9 +3293,15 @@ namespace InterstellarOdyssey
         {
             Widgets.Label(new Rect(inRect.x, inRect.y, inRect.width, 30f), "Посадка корабля");
 
-            List<Map> maps = Find.Maps.Where(m => m != null && m.IsPlayerHome).ToList();
-            Rect outRect = new Rect(inRect.x, inRect.y + 40f, inRect.width, inRect.height - 40f);
-            Rect viewRect = new Rect(0f, 0f, outRect.width - 16f, Mathf.Max(100f, maps.Count * 64f));
+            OrbitalNode destination = travel != null ? data.GetNodeById(travel.destinationId) : null;
+            Widgets.Label(new Rect(inRect.x, inRect.y + 32f, inRect.width, 24f), "Цель: " + data.ResolveNodeLabel(destination));
+
+            Rect modeRect = new Rect(inRect.x, inRect.y + 62f, inRect.width, 120f);
+            DrawModeSelector(modeRect, destination);
+
+            List<Map> maps = BuildLandingMapList(destination);
+            Rect outRect = new Rect(inRect.x, modeRect.yMax + 8f, inRect.width, inRect.height - (modeRect.yMax - inRect.y) - 8f);
+            Rect viewRect = new Rect(0f, 0f, outRect.width - 16f, Mathf.Max(120f, maps.Count * 78f));
 
             Widgets.BeginScrollView(outRect, ref scrollPos, viewRect);
             float curY = 0f;
@@ -2888,21 +3309,86 @@ namespace InterstellarOdyssey
             for (int i = 0; i < maps.Count; i++)
             {
                 Map map = maps[i];
-                Rect row = new Rect(0f, curY, viewRect.width, 56f);
+                Rect row = new Rect(0f, curY, viewRect.width, 70f);
                 Widgets.DrawMenuSection(row);
-                Widgets.Label(new Rect(10f, row.y + 8f, row.width - 160f, 24f), map.Parent != null ? map.Parent.LabelCap : "Карта колонии");
-                Widgets.Label(new Rect(10f, row.y + 28f, row.width - 160f, 24f), "Размер: " + map.Size.x + "x" + map.Size.z);
 
-                if (Widgets.ButtonText(new Rect(row.width - 130f, row.y + 13f, 120f, 30f), "Посадить"))
+                string mapLabel = map.Parent != null ? map.Parent.LabelCap : "Карта";
+                Widgets.Label(new Rect(row.x + 10f, row.y + 8f, row.width - 180f, 24f), mapLabel);
+                Widgets.Label(new Rect(row.x + 10f, row.y + 30f, row.width - 180f, 24f), "Размер: " + map.Size.x + "x" + map.Size.z + " | Режим: " + data.ResolveLandingModeLabel(selectedMode));
+
+                if (Widgets.ButtonText(new Rect(row.width - 150f, row.y + 20f, 140f, 30f), "Посадить"))
                 {
-                    if (Find.World.GetComponent<WorldComponent_Interstellar>().TryLandShip(travel, map))
+                    if (data.TryLandShip(travel, map, selectedMode))
                         Close();
                 }
 
-                curY += 64f;
+                curY += 78f;
             }
 
             Widgets.EndScrollView();
+        }
+
+        private void DrawModeSelector(Rect rect, OrbitalNode destination)
+        {
+            Widgets.DrawMenuSection(rect);
+            Rect inner = rect.ContractedBy(10f);
+
+            Widgets.Label(new Rect(inner.x, inner.y, inner.width, 24f), "Режим посадки");
+
+            ShipLandingMode[] modes = new[]
+            {
+                ShipLandingMode.Precise,
+                ShipLandingMode.Emergency,
+                ShipLandingMode.OrbitalDrop,
+                ShipLandingMode.UnpreparedSurface,
+                ShipLandingMode.StationDocking
+            };
+
+            float y = inner.y + 28f;
+            for (int i = 0; i < modes.Length; i++)
+            {
+                ShipLandingMode mode = modes[i];
+                bool allowed = IsModeAllowedForDestination(mode, destination);
+                Rect buttonRect = new Rect(inner.x + (i % 2) * ((inner.width - 10f) / 2f + 10f), y + (i / 2) * 34f, (inner.width - 10f) / 2f, 28f);
+
+                bool oldState = GUI.enabled;
+                GUI.enabled = allowed;
+                if (Widgets.ButtonText(buttonRect, (selectedMode == mode ? "● " : "○ ") + data.ResolveLandingModeLabel(mode)))
+                    selectedMode = mode;
+                GUI.enabled = oldState;
+            }
+
+            string tip = "Точная — безопаснее. Аварийная — быстрее и грубее. Орбитальный дроп — рассредоточивает экипаж и груз. Неподготовленная поверхность — посадка вне базы. Стыковка — для станций.";
+            Widgets.Label(new Rect(inner.x, inner.yMax - 24f, inner.width, 24f), tip);
+        }
+
+        private bool IsModeAllowedForDestination(ShipLandingMode mode, OrbitalNode destination)
+        {
+            if (destination == null)
+                return mode != ShipLandingMode.StationDocking;
+
+            if (mode == ShipLandingMode.StationDocking)
+                return destination.type == OrbitalNodeType.Station;
+
+            return true;
+        }
+
+        private List<Map> BuildLandingMapList(OrbitalNode destination)
+        {
+            List<Map> maps = new List<Map>();
+
+            if (destination != null)
+            {
+                Map targetMap = OrbitalNodeMapUtility.ResolveOrCreateMapForNode(destination);
+                if (targetMap != null)
+                    maps.Add(targetMap);
+            }
+
+            foreach (Map map in Find.Maps.Where(m => m != null && m.IsPlayerHome))
+                if (!maps.Contains(map))
+                    maps.Add(map);
+
+            return maps;
         }
     }
 
@@ -2966,26 +3452,55 @@ namespace InterstellarOdyssey
 
             foreach (ShipTransitRecord travel in data.activeTravels)
             {
-                Rect row = new Rect(sideRect.x + 10f, curY, sideRect.width - 20f, 92f);
+                Rect row = new Rect(sideRect.x + 10f, curY, sideRect.width - 20f, 112f);
                 Widgets.DrawBoxSolid(row, new Color(1f, 1f, 1f, 0.04f));
                 string src = data.ResolveNodeLabel(data.GetNodeById(travel.sourceId));
                 string dst = data.ResolveNodeLabel(data.GetNodeById(travel.destinationId));
                 Widgets.Label(new Rect(row.x + 8f, row.y + 6f, row.width - 16f, 24f), (travel.shipLabel ?? "Корабль") + ": " + src + " → " + dst);
-                Widgets.Label(new Rect(row.x + 8f, row.y + 30f, row.width - 16f, 24f), "Прогресс: " + (travel.Progress * 100f).ToString("0") + "%");
+                Widgets.Label(new Rect(row.x + 8f, row.y + 30f, row.width - 16f, 24f), "Прогресс: " + (travel.Progress * 100f).ToString("0") + "% | Событий: " + (travel.eventLog != null ? travel.eventLog.Count : 0));
 
                 Rect progressRect = new Rect(row.x + 8f, row.y + 54f, row.width - 16f, 18f);
                 Widgets.FillableBar(progressRect, travel.Progress);
 
-                if (Widgets.ButtonText(new Rect(row.x + row.width - 118f, row.y + 72f, 110f, 22f), "Монитор"))
+                ShipTransitEvent latestEvent = travel.eventLog != null && travel.eventLog.Count > 0 ? travel.eventLog[travel.eventLog.Count - 1] : null;
+                Widgets.Label(new Rect(row.x + 8f, row.y + 74f, row.width - 16f, 20f), latestEvent != null ? ("Последнее: " + latestEvent.title) : "Последнее: нет событий");
+
+                if (Widgets.ButtonText(new Rect(row.x + row.width - 118f, row.y + 88f, 110f, 22f), "Монитор"))
                     Find.WindowStack.Add(new Window_TransitMonitor(travel));
 
                 if (travel.stage == InterstellarTransitStage.AwaitingLanding)
                 {
-                    if (Widgets.ButtonText(new Rect(row.x + 8f, row.y + 72f, 110f, 22f), "Посадка"))
+                    if (Widgets.ButtonText(new Rect(row.x + 8f, row.y + 88f, 110f, 22f), "Посадка"))
                         Find.WindowStack.Add(new Window_ShipLanding(travel));
                 }
 
-                curY += 100f;
+                curY += 120f;
+            }
+
+            if (highlight != null)
+            {
+                float panelY = curY + 8f;
+                Rect panel = new Rect(sideRect.x + 10f, panelY, sideRect.width - 20f, Mathf.Max(120f, sideRect.yMax - panelY - 10f));
+                Widgets.DrawMenuSection(panel);
+                Rect innerPanel = panel.ContractedBy(8f);
+
+                Widgets.Label(new Rect(innerPanel.x, innerPanel.y, innerPanel.width, 24f), "Журнал событий");
+                float eventY = innerPanel.y + 28f;
+
+                if (highlight.eventLog == null || highlight.eventLog.Count == 0)
+                {
+                    Widgets.Label(new Rect(innerPanel.x, eventY, innerPanel.width, 24f), "Пока спокойно. Событий не было.");
+                }
+                else
+                {
+                    for (int i = highlight.eventLog.Count - 1; i >= 0 && eventY < innerPanel.yMax - 22f; i--)
+                    {
+                        ShipTransitEvent ev = highlight.eventLog[i];
+                        string line = "• " + ev.title + " — " + ev.description;
+                        Widgets.Label(new Rect(innerPanel.x, eventY, innerPanel.width, 40f), line);
+                        eventY += 38f;
+                    }
+                }
             }
         }
 
