@@ -317,6 +317,440 @@ namespace InterstellarOdyssey
         }
     }
 
+
+
+    public class ShipClusterData
+    {
+        public Map map;
+        public Faction faction;
+        public Thing anchor;
+        public IntVec3 anchorCell = IntVec3.Zero;
+        public HashSet<IntVec3> terrainCells = new HashSet<IntVec3>();
+        public List<Thing> structuralThings = new List<Thing>();
+        public HashSet<IntVec3> occupancyCells = new HashSet<IntVec3>();
+        public List<Thing> allBuildings = new List<Thing>();
+        public List<Pawn> pawns = new List<Pawn>();
+        public List<Thing> items = new List<Thing>();
+    }
+
+
+    public class ShipValidationCheck
+    {
+        public string label;
+        public bool passed;
+        public bool warningOnly;
+        public string details;
+
+        public ShipValidationCheck()
+        {
+        }
+
+        public ShipValidationCheck(string label, bool passed, string details = null, bool warningOnly = false)
+        {
+            this.label = label;
+            this.passed = passed;
+            this.details = details;
+            this.warningOnly = warningOnly;
+        }
+    }
+
+
+    public class ShipValidationReport
+    {
+        public readonly List<string> errors = new List<string>();
+        public readonly List<string> warnings = new List<string>();
+        public readonly List<ShipValidationCheck> checks = new List<ShipValidationCheck>();
+
+        public bool CanLaunch => errors.Count == 0;
+
+        public void AddCheck(string label, bool passed, string details = null, bool warningOnly = false)
+        {
+            checks.Add(new ShipValidationCheck(label, passed, details, warningOnly));
+        }
+
+        public void Error(string text)
+        {
+            if (!string.IsNullOrEmpty(text))
+                errors.Add(text);
+        }
+
+        public void Warning(string text)
+        {
+            if (!string.IsNullOrEmpty(text))
+                warnings.Add(text);
+        }
+
+        public string ToUserText()
+        {
+            System.Text.StringBuilder sb = new System.Text.StringBuilder();
+            sb.AppendLine("Предстартовая проверка корабля");
+
+            if (checks.Count > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("Чеклист:");
+                for (int i = 0; i < checks.Count; i++)
+                {
+                    ShipValidationCheck check = checks[i];
+                    string marker = check.passed ? "[OK]" : (check.warningOnly ? "[!]" : "[X]");
+                    sb.AppendLine(marker + " " + check.label + (string.IsNullOrEmpty(check.details) ? string.Empty : ": " + check.details));
+                }
+            }
+
+            if (errors.Count > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("Ошибки:");
+                for (int i = 0; i < errors.Count; i++)
+                    sb.AppendLine("• " + errors[i]);
+            }
+
+            if (warnings.Count > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("Предупреждения:");
+                for (int i = 0; i < warnings.Count; i++)
+                    sb.AppendLine("• " + warnings[i]);
+            }
+
+            if (errors.Count == 0 && warnings.Count == 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("Корабль готов к старту.");
+            }
+
+            return sb.ToString().TrimEnd();
+        }
+    }
+
+    public static class ShipValidationUtility
+    {
+        private const int MinimumCrew = 1;
+        private const float MinimumTotalFuel = 10f;
+
+
+        public static ShipValidationReport ValidateForLaunch(Thing shipAnchor)
+        {
+            ShipValidationReport report = new ShipValidationReport();
+
+            if (!ShipCaptureUtility.TryCollectShipCluster(shipAnchor, out ShipClusterData cluster))
+            {
+                report.AddCheck("Кластер корабля определён", false, "не удалось выделить корабль");
+                report.Error("Не удалось определить границы корабля.");
+                return report;
+            }
+
+            report.AddCheck("Кластер корабля определён", true, "клеток палубы: " + cluster.terrainCells.Count);
+
+            ValidateRequiredSystems(cluster, report);
+            ValidatePower(cluster, report);
+            ValidateCrew(cluster, report);
+            ValidateFuel(cluster, report);
+            ValidateHullIntegrity(cluster, report);
+            ValidateForeignPawns(cluster, report);
+            ValidateForbiddenObjects(cluster, report);
+
+            return report;
+        }
+
+
+        private static void ValidateRequiredSystems(ShipClusterData cluster, ShipValidationReport report)
+        {
+            bool hasCore = HasCore(cluster);
+            bool hasEngine = HasEngine(cluster);
+            bool hasTerminal = HasNavigationConsole(cluster);
+            bool hasHull = cluster.terrainCells != null && cluster.terrainCells.Count > 0;
+
+            report.AddCheck("Есть core", hasCore, hasCore ? null : "core не найден");
+            report.AddCheck("Есть двигатель", hasEngine, hasEngine ? null : "двигатель не найден");
+            report.AddCheck("Есть терминал", hasTerminal, hasTerminal ? null : "навигационный терминал не найден");
+            report.AddCheck("Есть корпус/палуба", hasHull, hasHull ? (cluster.terrainCells.Count + " клеток") : "корабельный пол не найден");
+
+            if (!hasCore)
+                report.Error("Не найден core корабля.");
+
+            if (!hasEngine)
+                report.Error("Не найден двигатель корабля.");
+
+            if (!hasTerminal)
+                report.Error("Не найден навигационный терминал.");
+
+            if (!hasHull)
+                report.Error("Не найден корабельный корпус/палуба.");
+        }
+
+
+        private static void ValidatePower(ShipClusterData cluster, ShipValidationReport report)
+        {
+            Thing terminal = cluster.structuralThings.FirstOrDefault(IsNavigationConsole);
+            if (terminal == null)
+            {
+                report.AddCheck("Есть питание", false, "терминал не найден");
+                report.Error("Терминал не найден.");
+                return;
+            }
+
+            CompPowerTrader terminalPower = terminal.TryGetComp<CompPowerTrader>();
+            bool terminalPowered = terminalPower == null || terminalPower.PowerOn;
+
+            bool hasAnyPoweredCritical = cluster.structuralThings.Any(t =>
+            {
+                if (t == null)
+                    return false;
+
+                if (!IsCore(t) && !IsEngine(t) && !IsNavigationConsole(t))
+                    return false;
+
+                CompPowerTrader comp = t.TryGetComp<CompPowerTrader>();
+                return comp == null || comp.PowerOn;
+            });
+
+            bool powerOk = terminalPowered && hasAnyPoweredCritical;
+            string powerDetails = powerOk ? "критические системы активны" : (!terminalPowered ? "терминал без питания" : "критические системы не запитаны");
+            report.AddCheck("Есть питание", powerOk, powerDetails);
+
+            if (!terminalPowered)
+                report.Error("Навигационный терминал не запитан.");
+
+            if (!hasAnyPoweredCritical)
+                report.Error("Критические системы корабля не запитаны.");
+        }
+
+
+        private static void ValidateCrew(ShipClusterData cluster, ShipValidationReport report)
+        {
+            int crewCount = cluster.pawns.Count(p =>
+                p != null &&
+                !p.Destroyed &&
+                !p.Dead &&
+                !p.Downed &&
+                p.Faction == Faction.OfPlayer &&
+                p.RaceProps != null &&
+                p.RaceProps.Humanlike);
+
+            bool ok = crewCount >= MinimumCrew;
+            report.AddCheck("Есть минимальный экипаж", ok, ok ? ("экипаж: " + crewCount) : ("нужно минимум " + MinimumCrew + ", сейчас " + crewCount));
+
+            if (!ok)
+                report.Error("Недостаточно экипажа. Минимум: " + MinimumCrew + ".");
+        }
+
+
+        private static void ValidateFuel(ShipClusterData cluster, ShipValidationReport report)
+        {
+            float totalFuel = 0f;
+            bool hasAnyFuelSystem = false;
+            int emptyModules = 0;
+
+            foreach (Thing thing in cluster.structuralThings)
+            {
+                if (thing == null)
+                    continue;
+
+                CompRefuelable refuelable = thing.TryGetComp<CompRefuelable>();
+                if (refuelable == null)
+                    continue;
+
+                if (IsEngine(thing) || IsCore(thing) || IsFuelTank(thing))
+                {
+                    hasAnyFuelSystem = true;
+                    totalFuel += refuelable.Fuel;
+
+                    if (refuelable.Fuel <= 0.01f)
+                    {
+                        emptyModules++;
+                        report.Error("Пустой топливный модуль: " + thing.LabelCap + ".");
+                    }
+                }
+            }
+
+            bool fuelOk = hasAnyFuelSystem && totalFuel >= MinimumTotalFuel && emptyModules == 0;
+            string fuelDetails = !hasAnyFuelSystem
+                ? "топливная система не найдена"
+                : ("топливо: " + totalFuel.ToString("0.#") + (emptyModules > 0 ? ", пустых модулей: " + emptyModules : string.Empty));
+
+            report.AddCheck("Есть запас топлива", fuelOk, fuelDetails);
+
+            if (!hasAnyFuelSystem)
+            {
+                report.Error("Не найдена топливная система корабля.");
+                return;
+            }
+
+            if (totalFuel < MinimumTotalFuel)
+                report.Error("Недостаточный запас топлива. Нужно минимум " + MinimumTotalFuel.ToString("0.#") + ".");
+        }
+
+
+        private static void ValidateHullIntegrity(ShipClusterData cluster, ShipValidationReport report)
+        {
+            if (cluster.map == null || cluster.terrainCells == null || cluster.terrainCells.Count == 0)
+            {
+                report.AddCheck("Корпус герметичен", false, "не удалось проверить корпус");
+                return;
+            }
+
+            List<IntVec3> unroofed = new List<IntVec3>();
+            List<IntVec3> breaches = new List<IntVec3>();
+
+            foreach (IntVec3 cell in cluster.terrainCells)
+            {
+                if (!cell.InBounds(cluster.map))
+                    continue;
+
+                RoofDef roof = cluster.map.roofGrid.RoofAt(cell);
+                if (roof == null)
+                    unroofed.Add(cell);
+
+                for (int i = 0; i < 4; i++)
+                {
+                    IntVec3 next = cell + GenAdj.CardinalDirections[i];
+                    if (!next.InBounds(cluster.map))
+                        continue;
+
+                    if (cluster.terrainCells.Contains(next))
+                        continue;
+
+                    if (!HasHullBoundaryAt(cluster.map, cell))
+                    {
+                        breaches.Add(cell);
+                        break;
+                    }
+                }
+            }
+
+            bool sealedHull = unroofed.Count == 0 && breaches.Count == 0;
+            string hullDetails = sealedHull ? "утечек не найдено" : ("без крыши: " + unroofed.Count + ", пробоин: " + breaches.Count);
+            report.AddCheck("Корпус герметичен", sealedHull, hullDetails);
+
+            if (unroofed.Count > 0)
+                report.Error("Корпус негерметичен: есть непокрытые крышей клетки (" + unroofed.Count + ").");
+
+            if (breaches.Count > 0)
+                report.Error("Корпус негерметичен: обнаружены пробоины/открытые участки периметра (" + breaches.Count + ").");
+        }
+
+
+        private static void ValidateForeignPawns(ShipClusterData cluster, ShipValidationReport report)
+        {
+            List<Pawn> foreign = cluster.pawns.Where(p =>
+                p != null &&
+                !p.Destroyed &&
+                !p.Dead &&
+                p.Faction != Faction.OfPlayer &&
+                !p.IsPrisonerOfColony).ToList();
+
+            bool ok = foreign.Count == 0;
+            string details = ok ? "посторонних нет" : string.Join(", ", foreign.Take(5).Select(p => p.LabelShortCap)) + (foreign.Count > 5 ? " ..." : string.Empty);
+            report.AddCheck("Нет чужих пешек/животных", ok, details);
+
+            if (!ok)
+                report.Error("На борту есть посторонние: " + details + ".");
+        }
+
+
+        private static void ValidateForbiddenObjects(ShipClusterData cluster, ShipValidationReport report)
+        {
+            List<Thing> forbidden = cluster.allBuildings.Where(IsForbiddenObjectForLaunch).ToList();
+
+            bool ok = forbidden.Count == 0;
+            string details = ok ? "недопустимых построек нет" : string.Join(", ", forbidden.Take(5).Select(t => t.LabelCap)) + (forbidden.Count > 5 ? " ..." : string.Empty);
+            report.AddCheck("Нет запрещённых построек", ok, details);
+
+            if (!ok)
+                report.Error("На корабле есть запрещённые/недопустимые объекты: " + details + ".");
+        }
+
+        private static bool HasCore(ShipClusterData cluster)
+        {
+            return cluster.structuralThings.Any(IsCore);
+        }
+
+        private static bool HasEngine(ShipClusterData cluster)
+        {
+            return cluster.structuralThings.Any(IsEngine);
+        }
+
+        private static bool HasNavigationConsole(ShipClusterData cluster)
+        {
+            return cluster.structuralThings.Any(IsNavigationConsole);
+        }
+
+        private static bool IsCore(Thing thing)
+        {
+            string defName = thing?.def?.defName ?? string.Empty;
+            string lower = defName.ToLowerInvariant();
+            return lower.Contains("gravcore") || lower.Contains("shipcore") || lower.Contains("core");
+        }
+
+        private static bool IsEngine(Thing thing)
+        {
+            string defName = thing?.def?.defName ?? string.Empty;
+            string lower = defName.ToLowerInvariant();
+            return lower.Contains("gravengine") || lower.Contains("thruster") || lower.Contains("engine");
+        }
+
+        private static bool IsFuelTank(Thing thing)
+        {
+            string defName = thing?.def?.defName ?? string.Empty;
+            string lower = defName.ToLowerInvariant();
+            return lower.Contains("chemfueltank") || lower.Contains("fueltank") || lower.Contains("tank");
+        }
+
+        private static bool IsNavigationConsole(Thing thing)
+        {
+            string defName = thing?.def?.defName ?? string.Empty;
+            string lower = defName.ToLowerInvariant();
+            return lower.Contains("navigationconsole") || lower.Contains("pilotconsole") || lower.Contains("shipnavigationconsole");
+        }
+
+        private static bool HasHullBoundaryAt(Map map, IntVec3 cell)
+        {
+            if (map == null || !cell.InBounds(map))
+                return false;
+
+            List<Thing> things = map.thingGrid.ThingsListAt(cell);
+            for (int i = 0; i < things.Count; i++)
+            {
+                Thing thing = things[i];
+                if (thing == null || thing.Destroyed || thing.def == null)
+                    continue;
+
+                if (thing.def.category != ThingCategory.Building)
+                    continue;
+
+                if (thing.def.IsDoor)
+                    return true;
+
+                if (thing.def.passability == Traversability.Impassable)
+                    return true;
+
+                string defName = (thing.def.defName ?? string.Empty).ToLowerInvariant();
+                if (defName.Contains("hull") || defName.Contains("wall"))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool IsForbiddenObjectForLaunch(Thing thing)
+        {
+            if (thing == null || thing.def == null)
+                return false;
+
+            if (thing is Blueprint || thing is Frame)
+                return true;
+
+            if (thing.def.category == ThingCategory.Building)
+            {
+                if (thing.Faction != null && thing.Faction != Faction.OfPlayer)
+                    return true;
+            }
+
+            return false;
+        }
+    }
+
     public static class ShipCaptureUtility
     {
         private static readonly HashSet<string> StructuralDefs = new HashSet<string>(StringComparer.Ordinal)
@@ -396,6 +830,68 @@ namespace InterstellarOdyssey
 
             return null;
         }
+
+        public static bool TryCollectShipCluster(Thing shipAnchor, out ShipClusterData cluster)
+        {
+            cluster = null;
+
+            if (shipAnchor == null || shipAnchor.Map == null || shipAnchor.def == null)
+                return false;
+
+            Map map = shipAnchor.Map;
+            Faction faction = shipAnchor.Faction;
+            IntVec3 anchorCell = shipAnchor.Position;
+
+            HashSet<IntVec3> terrainCells = CollectConnectedShipTerrain(map, anchorCell);
+            if (terrainCells == null || terrainCells.Count == 0)
+                return false;
+
+            List<Thing> structural = CollectStructuralShipThings(map, faction, terrainCells);
+            if (structural == null || structural.Count == 0)
+                return false;
+
+            HashSet<IntVec3> occupancy = BuildShipOccupancyCells(structural, terrainCells);
+
+            cluster = new ShipClusterData
+            {
+                map = map,
+                faction = faction,
+                anchor = shipAnchor,
+                anchorCell = anchorCell,
+                terrainCells = terrainCells,
+                structuralThings = structural,
+                occupancyCells = occupancy
+            };
+
+            List<Thing> allThings = map.listerThings.AllThings;
+            for (int i = 0; i < allThings.Count; i++)
+            {
+                Thing thing = allThings[i];
+                if (thing == null || thing.Destroyed || !thing.Spawned)
+                    continue;
+
+                if (!IsThingInsideShipCells(thing, occupancy))
+                    continue;
+
+                if (thing.def.category == ThingCategory.Building)
+                {
+                    cluster.allBuildings.Add(thing);
+                    continue;
+                }
+
+                if (thing is Pawn pawn)
+                {
+                    cluster.pawns.Add(pawn);
+                    continue;
+                }
+
+                cluster.items.Add(thing);
+            }
+
+            return true;
+        }
+
+
 
         public static bool TryCaptureAndDespawnShip(Thing shipAnchor, string currentNodeId, out ShipSnapshot snapshot)
         {
@@ -1776,6 +2272,13 @@ namespace InterstellarOdyssey
                 return false;
             }
 
+            ShipValidationReport validation = ShipValidationUtility.ValidateForLaunch(shipAnchor);
+            if (!validation.CanLaunch)
+            {
+                Find.WindowStack.Add(new Dialog_MessageBox(validation.ToUserText()));
+                return false;
+            }
+
             if (!ShipCaptureUtility.TryCaptureAndDespawnShip(shipAnchor, current != null ? current.id : "homeworld", out ShipSnapshot snapshot))
             {
                 Messages.Message("Не удалось захватить корабль для перелёта.", MessageTypeDefOf.RejectInput, false);
@@ -1837,6 +2340,7 @@ namespace InterstellarOdyssey
     public class Window_OrbitalMap : Window
     {
         private readonly Thing ship;
+        private ShipValidationReport validationReport;
         private Vector2 scrollPos;
 
         private WorldComponent_Interstellar Data
@@ -1859,6 +2363,12 @@ namespace InterstellarOdyssey
             closeOnAccept = false;
             draggable = true;
             Data.GenerateIfNeeded();
+            RefreshValidationReport();
+        }
+
+        private void RefreshValidationReport()
+        {
+            validationReport = ShipValidationUtility.ValidateForLaunch(ship);
         }
 
         public override void DoWindowContents(Rect inRect)
@@ -1868,15 +2378,24 @@ namespace InterstellarOdyssey
             Widgets.Label(titleRect, "Орбитальная карта");
             Text.Font = GameFont.Small;
 
-            Rect topInfo = new Rect(inRect.x, titleRect.yMax + 10f, inRect.width, 30f);
+            Rect topInfo = new Rect(inRect.x, titleRect.yMax + 10f, inRect.width - 170f, 30f);
             OrbitalNode current = Data.GetCurrentNodeForShip(ship);
             Widgets.Label(topInfo, "Текущая цель: " + Data.ResolveNodeLabel(current));
+
+            Rect refreshButtonRect = new Rect(inRect.xMax - 150f, titleRect.yMax + 6f, 150f, 32f);
+            if (Widgets.ButtonText(refreshButtonRect, "Обновить проверку"))
+                RefreshValidationReport();
 
             Rect leftRect = new Rect(inRect.x, topInfo.yMax + 10f, inRect.width * 0.58f, inRect.height - 95f);
             Rect rightRect = new Rect(leftRect.xMax + 12f, topInfo.yMax + 10f, inRect.width - leftRect.width - 12f, inRect.height - 95f);
 
+            float checklistHeight = Mathf.Min(250f, rightRect.height * 0.42f);
+            Rect checklistRect = new Rect(rightRect.x, rightRect.y, rightRect.width, checklistHeight);
+            Rect destinationsRect = new Rect(rightRect.x, checklistRect.yMax + 10f, rightRect.width, rightRect.height - checklistHeight - 10f);
+
             DrawOrbitCanvas(leftRect);
-            DrawDestinationList(rightRect, current);
+            DrawValidationChecklist(checklistRect);
+            DrawDestinationList(destinationsRect, current);
 
             if (Data.IsShipTravelling(ship))
             {
@@ -1954,6 +2473,57 @@ namespace InterstellarOdyssey
             Widgets.Label(labelRect, Data.ResolveNodeLabel(node));
         }
 
+
+        private void DrawValidationChecklist(Rect rect)
+        {
+            if (validationReport == null)
+                RefreshValidationReport();
+
+            Widgets.DrawMenuSection(rect);
+
+            Rect inner = rect.ContractedBy(10f);
+            Rect header = new Rect(inner.x, inner.y, inner.width - 100f, 25f);
+            Widgets.Label(header, "Предстартовая проверка");
+
+            Rect stateRect = new Rect(inner.xMax - 100f, inner.y, 100f, 25f);
+            Color prevColor = GUI.color;
+            GUI.color = validationReport != null && validationReport.CanLaunch ? new Color(0.45f, 1f, 0.45f) : new Color(1f, 0.45f, 0.45f);
+            Widgets.Label(stateRect, validationReport != null && validationReport.CanLaunch ? "ГОТОВ" : "НЕ ГОТОВ");
+            GUI.color = prevColor;
+
+            float y = header.yMax + 8f;
+            if (validationReport == null)
+            {
+                Widgets.Label(new Rect(inner.x, y, inner.width, 24f), "Нет данных проверки.");
+                return;
+            }
+
+            for (int i = 0; i < validationReport.checks.Count; i++)
+            {
+                ShipValidationCheck check = validationReport.checks[i];
+                Rect row = new Rect(inner.x, y, inner.width, 32f);
+                string marker = check.passed ? "☑" : "☒";
+                Color rowColor = check.passed ? new Color(0.55f, 1f, 0.55f) : new Color(1f, 0.55f, 0.55f);
+
+                GUI.color = rowColor;
+                Widgets.Label(new Rect(row.x, row.y, 24f, 24f), marker);
+                GUI.color = Color.white;
+
+                string label = check.label;
+                if (!string.IsNullOrEmpty(check.details))
+                    label += " — " + check.details;
+
+                Widgets.Label(new Rect(row.x + 24f, row.y, row.width - 24f, row.height), label);
+                y += 28f;
+            }
+
+            if (validationReport.errors.Count > 0)
+            {
+                y += 4f;
+                Widgets.Label(new Rect(inner.x, y, inner.width, 24f), "Ошибок: " + validationReport.errors.Count);
+            }
+        }
+
         private void DrawDestinationList(Rect rect, OrbitalNode current)
         {
             Widgets.DrawMenuSection(rect);
@@ -1989,6 +2559,7 @@ namespace InterstellarOdyssey
 
                 if (Widgets.ButtonText(buttonRect, "Лететь") && !disabled)
                 {
+                    RefreshValidationReport();
                     if (Data.StartTravel(ship, node))
                         Close();
                 }
