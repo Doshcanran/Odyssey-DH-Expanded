@@ -251,16 +251,25 @@ namespace InterstellarOdyssey
 
             private static bool IsCore(Thing thing)
             {
-                string defName = thing?.def?.defName ?? string.Empty;
-                string lower = defName.ToLowerInvariant();
-                return lower.Contains("gravcore") || lower.Contains("shipcore") || lower.Contains("core");
+                string defName = (thing?.def?.defName ?? string.Empty).ToLowerInvariant();
+
+                if (defName.Contains("gravcore") || defName.Contains("shipcore"))
+                    return true;
+
+                return defName.Contains("core") && (defName.Contains("ship") || defName.Contains("grav"));
             }
 
             private static bool IsEngine(Thing thing)
             {
-                string defName = thing?.def?.defName ?? string.Empty;
-                string lower = defName.ToLowerInvariant();
-                return lower.Contains("gravengine") || lower.Contains("thruster") || lower.Contains("engine");
+                string defName = (thing?.def?.defName ?? string.Empty).ToLowerInvariant();
+
+                if (defName.Contains("gravengine") || defName.Contains("shipengine"))
+                    return true;
+
+                if (defName.Contains("thruster"))
+                    return true;
+
+                return defName.Contains("engine") && (defName.Contains("ship") || defName.Contains("grav"));
             }
 
             private static bool IsNavigationConsole(Thing thing)

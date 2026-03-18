@@ -267,16 +267,94 @@ namespace InterstellarOdyssey
                 return thrust;
             }
 
+            public static Dictionary<Thing, float> SnapshotFuelState(ShipClusterData cluster)
+            {
+                Dictionary<Thing, float> fuelState = new Dictionary<Thing, float>();
+                if (cluster == null || cluster.structuralThings == null)
+                    return fuelState;
+
+                for (int i = 0; i < cluster.structuralThings.Count; i++)
+                {
+                    Thing thing = cluster.structuralThings[i];
+                    if (thing == null)
+                        continue;
+
+                    CompRefuelable refuelable = thing.TryGetComp<CompRefuelable>();
+                    if (refuelable == null || !IsFuelBearingPart(thing))
+                        continue;
+
+                    fuelState[thing] = refuelable.Fuel;
+                }
+
+                return fuelState;
+            }
+
+            public static void RestoreFuelState(Dictionary<Thing, float> fuelState)
+            {
+                if (fuelState == null || fuelState.Count == 0)
+                    return;
+
+                foreach (KeyValuePair<Thing, float> entry in fuelState)
+                {
+                    Thing thing = entry.Key;
+                    if (thing == null || thing.Destroyed)
+                        continue;
+
+                    CompRefuelable refuelable = thing.TryGetComp<CompRefuelable>();
+                    if (refuelable == null)
+                        continue;
+
+                    float delta = entry.Value - refuelable.Fuel;
+                    if (Mathf.Abs(delta) <= 0.001f)
+                        continue;
+
+                    try
+                    {
+                        if (delta > 0f)
+                            refuelable.Refuel(delta);
+                        else
+                            refuelable.ConsumeFuel(-delta);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning("[InterstellarOdyssey] Не удалось откатить топливо для " + thing.LabelCap + ": " + ex);
+                    }
+                }
+            }
+
             private static bool IsEnginePart(Thing thing)
             {
                 string defName = (thing?.def?.defName ?? string.Empty).ToLowerInvariant();
-                return defName.Contains("gravengine") || defName.Contains("thruster") || defName.Contains("engine");
+
+                if (defName.Contains("gravengine") || defName.Contains("shipengine"))
+                    return true;
+
+                if (defName.Contains("thruster"))
+                    return true;
+
+                return defName.Contains("engine") && (defName.Contains("grav") || defName.Contains("ship"));
             }
 
             private static bool IsFuelBearingPart(Thing thing)
             {
-                string defName = (thing?.def?.defName ?? string.Empty).ToLowerInvariant();
-                return defName.Contains("chemfueltank") || defName.Contains("fueltank") || defName.Contains("tank") || IsEnginePart(thing) || defName.Contains("gravcore");
+                if (thing == null || thing.def == null || thing.TryGetComp<CompRefuelable>() == null)
+                    return false;
+
+                string defName = (thing.def.defName ?? string.Empty).ToLowerInvariant();
+
+                if (defName.Contains("chemfueltank") || defName.Contains("fueltank"))
+                    return true;
+
+                if (defName.Contains("shiptank") || defName.Contains("gravtank"))
+                    return true;
+
+                if (defName.Contains("tank") && (defName.Contains("ship") || defName.Contains("grav")))
+                    return true;
+
+                if (defName.Contains("gravcore") || defName.Contains("shipcore"))
+                    return true;
+
+                return IsEnginePart(thing);
             }
         }
 }

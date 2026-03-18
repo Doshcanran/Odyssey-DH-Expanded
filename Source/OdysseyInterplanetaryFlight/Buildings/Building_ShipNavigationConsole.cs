@@ -22,6 +22,24 @@ namespace InterstellarOdyssey
                 }
             }
 
+            public override void DrawExtraSelectionOverlays()
+            {
+                base.DrawExtraSelectionOverlays();
+
+                Thing ship = ShipResolver.FindBestAvailableShip(this);
+                if (ship == null)
+                    return;
+
+                if (!ShipCaptureUtility.TryCollectShipClusterDebugData(ship, out List<IntVec3> shipCells, out List<IntVec3> perimeterCells, out CellRect bounds, out string summary))
+                    return;
+
+                if (shipCells != null && shipCells.Count > 0)
+                    GenDraw.DrawFieldEdges(shipCells);
+
+                if (perimeterCells != null && perimeterCells.Count > 0)
+                    GenDraw.DrawFieldEdges(perimeterCells, Color.yellow);
+            }
+
             public override IEnumerable<Gizmo> GetGizmos()
             {
                 foreach (Gizmo gizmo in base.GetGizmos())
@@ -50,6 +68,35 @@ namespace InterstellarOdyssey
                         Find.WindowStack.Add(new Window_OrbitalMap(ship));
                     }
                 };
+
+                if (Prefs.DevMode)
+                {
+                    yield return new Command_Action
+                    {
+                        defaultLabel = "DEBUG: Границы корабля",
+                        defaultDesc = "Логирует состав кластера и подсвечивает его при выборе терминала.",
+                        icon = TexCommand.GatherSpotActive,
+                        action = delegate
+                        {
+                            Thing ship = ShipResolver.FindBestAvailableShip(this);
+                            if (ship == null)
+                            {
+                                Messages.Message("Корабль рядом с терминалом не найден.", MessageTypeDefOf.RejectInput, false);
+                                return;
+                            }
+
+                            if (!ShipCaptureUtility.TryCollectShipClusterDebugData(ship, out List<IntVec3> shipCells, out List<IntVec3> perimeterCells, out CellRect bounds, out string summary))
+                            {
+                                Messages.Message("Не удалось собрать debug-данные кластера.", MessageTypeDefOf.RejectInput, false);
+                                return;
+                            }
+
+                            Log.Message("[InterstellarOdyssey] DEBUG ship cluster: " + summary + " perimeter=" + perimeterCells.Count);
+                            Find.CameraDriver.JumpToCurrentMapLoc(ship.Position);
+                            Messages.Message("DEBUG кластер: " + summary + ". Периметр=" + perimeterCells.Count + ".", MessageTypeDefOf.TaskCompletion, false);
+                        }
+                    };
+                }
             }
         }
 

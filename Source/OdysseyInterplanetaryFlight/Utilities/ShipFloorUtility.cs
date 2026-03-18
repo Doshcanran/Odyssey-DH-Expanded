@@ -32,17 +32,19 @@ namespace InterstellarOdyssey
                 string defName = (terrain.defName ?? string.Empty).ToLowerInvariant();
                 string label = (terrain.label ?? string.Empty).ToLowerInvariant();
 
-                return defName.Contains("gravship")
-                    || defName.Contains("shipfloor")
-                    || defName.Contains("shipdeck")
-                    || defName.Contains("superstructure")
-                    || defName.Contains("substructure")
-                    || defName.Contains("substruscure")
-                    || defName.Contains("deck")
-                    || label.Contains("gravship")
-                    || label.Contains("палуб")
-                    || label.Contains("кораб")
-                    || label.Contains("надстрой");
+                if (defName.Contains("gravship"))
+                    return true;
+
+                if (defName.Contains("shipfloor") || defName.Contains("shipdeck"))
+                    return true;
+
+                if (defName.Contains("superstructure") || defName.Contains("substructure") || defName.Contains("substruscure"))
+                    return true;
+
+                if (label.Contains("ship floor") || label.Contains("ship deck") || label.Contains("gravship"))
+                    return true;
+
+                return label.Contains("корабельн") || label.Contains("палуба корабля") || label.Contains("гравипалуб");
             }
 
             public static bool IsShipFloorCell(Map map, IntVec3 cell)

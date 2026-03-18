@@ -155,35 +155,79 @@ namespace InterstellarOdyssey
                     return false;
                 }
 
-                ShipPropulsionUtility.ConsumeFuel(launchCluster, propulsion.fuelNeeded);
+                Map sourceMap = shipAnchor.Map;
+                IntVec3 sourceAnchorCell = shipAnchor.Position;
+                ShipSnapshot snapshot = null;
+                ShipTransitRecord record = null;
+                Dictionary<Thing, float> fuelState = ShipPropulsionUtility.SnapshotFuelState(launchCluster);
+                bool travelAdded = false;
 
-                if (!ShipCaptureUtility.TryCaptureAndDespawnShip(shipAnchor, current != null ? current.id : "homeworld", out ShipSnapshot snapshot))
+                try
                 {
-                    Messages.Message("Не удалось захватить корабль для перелёта.", MessageTypeDefOf.RejectInput, false);
+                    if (!ShipCaptureUtility.TryCaptureAndDespawnShip(shipAnchor, current != null ? current.id : "homeworld", out snapshot))
+                    {
+                        Messages.Message("Не удалось захватить корабль для перелёта.", MessageTypeDefOf.RejectInput, false);
+                        return false;
+                    }
+
+                    ShipPropulsionUtility.ConsumeFuel(launchCluster, propulsion.fuelNeeded);
+
+                    float days = propulsion.travelDays > 0f ? propulsion.travelDays : Mathf.Max(0.2f, OrbitalMath.Distance(current, destination) / 45f);
+                    int durationTicks = Mathf.Max(2500, Mathf.RoundToInt(days * GenDate.TicksPerDay));
+
+                    record = new ShipTransitRecord
+                    {
+                        shipThingId = shipAnchor.thingIDNumber,
+                        shipLabel = shipAnchor.LabelCap,
+                        shipDefName = shipAnchor.def.defName,
+                        sourceId = current != null ? current.id : "homeworld",
+                        destinationId = destination.id,
+                        departureTick = Find.TickManager.TicksGame,
+                        arrivalTick = Find.TickManager.TicksGame + durationTicks,
+                        stage = InterstellarTransitStage.InTransit,
+                        snapshot = snapshot,
+                        preferredLandingMode = ShipLandingMode.Precise
+                    };
+
+                    ShipTransitEventUtility.ScheduleNextEvent(record, Find.TickManager.TicksGame);
+                    activeTravels.Add(record);
+                    travelAdded = true;
+
+                    Messages.Message("Начат межпланетный перелёт: " + record.shipLabel + " → " + ResolveNodeLabel(destination) + ". Израсходовано топлива: " + propulsion.fuelNeeded.ToString("0.#"), MessageTypeDefOf.PositiveEvent, false);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    if (travelAdded && record != null)
+                        activeTravels.Remove(record);
+
+                    Log.Error("[InterstellarOdyssey] StartTravel failed, performing rollback: " + ex);
+
+                    try
+                    {
+                        ShipPropulsionUtility.RestoreFuelState(fuelState);
+                    }
+                    catch (Exception fuelEx)
+                    {
+                        Log.Warning("[InterstellarOdyssey] Fuel rollback failed: " + fuelEx);
+                    }
+
+                    if (snapshot != null && sourceMap != null)
+                    {
+                        try
+                        {
+                            snapshot.anchorCell = sourceAnchorCell;
+                            ShipLandingUtility.TryRestoreShip(snapshot, sourceMap, sourceAnchorCell, ShipLandingMode.Precise, out Thing restoredAnchor);
+                        }
+                        catch (Exception restoreEx)
+                        {
+                            Log.Error("[InterstellarOdyssey] Ship rollback restore failed: " + restoreEx);
+                        }
+                    }
+
+                    Messages.Message("Перелёт отменён из-за ошибки. Выполнен откат состояния корабля.", MessageTypeDefOf.RejectInput, false);
                     return false;
                 }
-
-                float days = propulsion.travelDays > 0f ? propulsion.travelDays : Mathf.Max(0.2f, OrbitalMath.Distance(current, destination) / 45f);
-                int durationTicks = Mathf.Max(2500, Mathf.RoundToInt(days * GenDate.TicksPerDay));
-
-                ShipTransitRecord record = new ShipTransitRecord
-                {
-                    shipThingId = shipAnchor.thingIDNumber,
-                    shipLabel = shipAnchor.LabelCap,
-                    shipDefName = shipAnchor.def.defName,
-                    sourceId = current != null ? current.id : "homeworld",
-                    destinationId = destination.id,
-                    departureTick = Find.TickManager.TicksGame,
-                    arrivalTick = Find.TickManager.TicksGame + durationTicks,
-                    stage = InterstellarTransitStage.InTransit,
-                    snapshot = snapshot,
-                    preferredLandingMode = ShipLandingMode.Precise
-                };
-
-                ShipTransitEventUtility.ScheduleNextEvent(record, Find.TickManager.TicksGame);
-                activeTravels.Add(record);
-                Messages.Message("Начат межпланетный перелёт: " + record.shipLabel + " → " + ResolveNodeLabel(destination) + ". Израсходовано топлива: " + propulsion.fuelNeeded.ToString("0.#"), MessageTypeDefOf.PositiveEvent, false);
-                return true;
             }
 
             public bool TryLandShip(ShipTransitRecord record, Map map, ShipLandingMode mode)
