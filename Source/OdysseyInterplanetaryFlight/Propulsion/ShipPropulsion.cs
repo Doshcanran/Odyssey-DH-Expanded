@@ -20,8 +20,8 @@ namespace InterstellarOdyssey
             public bool hasEnoughFuel;
             public bool hasEnoughThrust;
             public string blockingReason;
-
-            public float MassToThrustRatio
+        public float totalMass => shipMass;public float totalThrust => thrust;
+        public float MassToThrustRatio
             {
                 get
                 {
@@ -239,23 +239,9 @@ namespace InterstellarOdyssey
 
             private static float GetEngineThrust(Thing thing)
             {
-                string defName = (thing.def?.defName ?? string.Empty).ToLowerInvariant();
-                string label = (thing.def?.label ?? string.Empty).ToLowerInvariant();
-
-                float thrust = 0f;
-
-                if (defName.Contains("smallthruster") || label.Contains("small thruster"))
-                    thrust = 32f;
-                else if (defName.Contains("largethruster") || label.Contains("large thruster"))
-                    thrust = 72f;
-                else if (defName.Contains("thruster") || label.Contains("thruster"))
-                    thrust = 45f;
-                else if (defName.Contains("gravengine") || label.Contains("grav engine"))
-                    thrust = 85f;
-                else if (defName.Contains("engine") || label.Contains("engine"))
-                    thrust = 50f;
-                else
-                    thrust = 35f;
+                float thrust = ShipPartUtility.GetEngineThrust(thing);
+                if (thrust <= 0f)
+                    return 0f;
 
                 CompPowerTrader power = thing.TryGetComp<CompPowerTrader>();
                 if (power != null && !power.PowerOn)
@@ -324,37 +310,12 @@ namespace InterstellarOdyssey
 
             private static bool IsEnginePart(Thing thing)
             {
-                string defName = (thing?.def?.defName ?? string.Empty).ToLowerInvariant();
-
-                if (defName.Contains("gravengine") || defName.Contains("shipengine"))
-                    return true;
-
-                if (defName.Contains("thruster"))
-                    return true;
-
-                return defName.Contains("engine") && (defName.Contains("grav") || defName.Contains("ship"));
+                return ShipPartUtility.IsEngine(thing);
             }
 
             private static bool IsFuelBearingPart(Thing thing)
             {
-                if (thing == null || thing.def == null || thing.TryGetComp<CompRefuelable>() == null)
-                    return false;
-
-                string defName = (thing.def.defName ?? string.Empty).ToLowerInvariant();
-
-                if (defName.Contains("chemfueltank") || defName.Contains("fueltank"))
-                    return true;
-
-                if (defName.Contains("shiptank") || defName.Contains("gravtank"))
-                    return true;
-
-                if (defName.Contains("tank") && (defName.Contains("ship") || defName.Contains("grav")))
-                    return true;
-
-                if (defName.Contains("gravcore") || defName.Contains("shipcore"))
-                    return true;
-
-                return IsEnginePart(thing);
+                return ShipPartUtility.IsFuelBearingPart(thing);
             }
         }
 }

@@ -46,9 +46,15 @@
 			<li Class="CompProperties_Flickable" />
 		</comps>
 
-		<placeWorkers>
-			<li>InterstellarOdyssey.PlaceWorker_ShipNavigationConsole</li>
-		</placeWorkers>
+        <modExtensions>
+            <li Class="InterstellarOdyssey.ShipPartRoleExtension">
+                <roles>
+                    <li>NavigationConsole</li>
+                    <li>Structure</li>
+                </roles>
+            </li>
+        </modExtensions>
+
 
 		<designationCategory>Misc</designationCategory>
 		<researchPrerequisites>

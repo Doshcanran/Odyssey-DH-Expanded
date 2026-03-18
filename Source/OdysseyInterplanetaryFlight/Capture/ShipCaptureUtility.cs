@@ -10,18 +10,6 @@ namespace InterstellarOdyssey
 {
         public static class ShipCaptureUtility
         {
-            private static readonly HashSet<string> StructuralDefs = new HashSet<string>(StringComparer.Ordinal)
-            {
-                "GravEngine",
-                "GravshipHull",
-                "PilotConsole",
-                "SmallThruster",
-                "ChemfuelTank",
-                "GravcorePowerCell",
-                "Door",
-                "IO_ShipNavigationConsole"
-            };
-
             private static string GetShipStructureDefName(Thing thing)
             {
                 if (thing == null || thing.def == null)
@@ -39,7 +27,14 @@ namespace InterstellarOdyssey
 
             private static bool IsKnownShipStructureDef(string defName)
             {
-                return !string.IsNullOrEmpty(defName) && StructuralDefs.Contains(defName);
+                if (string.IsNullOrEmpty(defName))
+                    return false;
+
+                ThingDef def = DefDatabase<ThingDef>.GetNamedSilentFail(defName);
+                if (def != null)
+                    return ShipPartUtility.HasRole(def, ShipPartRole.Structure) || ShipPartUtility.HasRole(def, ShipPartRole.HullBoundary);
+
+                return false;
             }
 
             public static Thing FindShipAnchorForConsole(Building console)
@@ -275,23 +270,17 @@ namespace InterstellarOdyssey
                     return int.MinValue;
 
                 int score = 0;
-                string defName = (thing.def.defName ?? string.Empty).ToLowerInvariant();
-                string label = (thing.def.label ?? string.Empty).ToLowerInvariant();
 
-                if (defName.Contains("gravengine"))
+                if (ShipPartUtility.IsCore(thing))
                     score += 500;
-                if (defName.Contains("grav"))
-                    score += 200;
-                if (defName.Contains("engine"))
+                if (ShipPartUtility.IsEngine(thing))
+                    score += 300;
+                if (ShipPartUtility.IsNavigationConsole(thing))
                     score += 150;
-                if (defName.Contains("bridge") || defName.Contains("console"))
-                    score += 80;
-                if (defName.Contains("hull"))
-                    score += 40;
-                if (label.Contains("грав"))
-                    score += 100;
-                if (label.Contains("кораб"))
-                    score += 50;
+                if (ShipPartUtility.IsHullBoundary(thing))
+                    score += 75;
+                if (ShipPartUtility.IsShipStructure(thing))
+                    score += 25;
 
                 score -= thing.Position.DistanceToSquared(consolePos);
                 return score;

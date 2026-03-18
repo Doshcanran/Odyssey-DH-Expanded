@@ -80,6 +80,8 @@ namespace InterstellarOdyssey
 
                     ShipTransitEvent latestEvent = travel.eventLog != null && travel.eventLog.Count > 0 ? travel.eventLog[travel.eventLog.Count - 1] : null;
                     Widgets.Label(new Rect(row.x + 8f, row.y + 74f, row.width - 16f, 20f), latestEvent != null ? ("Последнее: " + latestEvent.title) : "Последнее: нет событий");
+                    if (latestEvent != null)
+                        TooltipHandler.TipRegion(new Rect(row.x + 8f, row.y + 74f, row.width - 16f, 20f), ShipTransitEventUtility.DescribeConsequences(latestEvent));
 
                     if (Widgets.ButtonText(new Rect(row.x + row.width - 118f, row.y + 88f, 110f, 22f), "Монитор"))
                         Find.WindowStack.Add(new Window_TransitMonitor(travel));
@@ -112,7 +114,7 @@ namespace InterstellarOdyssey
                         for (int i = highlight.eventLog.Count - 1; i >= 0 && eventY < innerPanel.yMax - 22f; i--)
                         {
                             ShipTransitEvent ev = highlight.eventLog[i];
-                            string line = "• " + ev.title + " — " + ev.description;
+                            string line = "• " + ev.title + " — " + ev.description + (!string.IsNullOrEmpty(ev.impactSummary) ? " [" + ev.impactSummary + "]" : string.Empty);
                             Widgets.Label(new Rect(innerPanel.x, eventY, innerPanel.width, 40f), line);
                             eventY += 38f;
                         }

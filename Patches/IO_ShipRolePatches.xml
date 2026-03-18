@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Patch>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="GravEngine"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="GravEngine"]</xpath>
+      <value>
+        <li Class="InterstellarOdyssey.ShipPartRoleExtension">
+			<roles>
+				<li>Core</li>
+				<li>Engine</li>
+				<li>HullBoundary</li>
+				<li>Structure</li>
+			</roles>
+          <engineThrust>85</engineThrust>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="SmallThruster"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="SmallThruster"]</xpath>
+      <value>
+        <li Class="InterstellarOdyssey.ShipPartRoleExtension">
+			<roles>
+				<li>Engine</li>
+				<li>HullBoundary</li>
+				<li>Structure</li>
+			</roles>
+          <engineThrust>32</engineThrust>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="LargeThruster"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="LargeThruster"]</xpath>
+      <value>
+        <li Class="InterstellarOdyssey.ShipPartRoleExtension">
+			<roles>
+				<li>Engine</li>
+				<li>HullBoundary</li>
+				<li>Structure</li>
+			</roles>
+          <engineThrust>72</engineThrust>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="ChemfuelTank" or defName="FuelTank" or defName="ShipFuelTank" or defName="GravFuelTank"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="ChemfuelTank" or defName="FuelTank" or defName="ShipFuelTank" or defName="GravFuelTank"]</xpath>
+      <value>
+        <li Class="InterstellarOdyssey.ShipPartRoleExtension">
+          <roles>
+            <li>FuelTank</li>
+            <li>Structure</li>
+          </roles>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="PilotConsole" or defName="ShipNavigationConsole" or defName="IO_ShipNavigationConsole"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="PilotConsole" or defName="ShipNavigationConsole" or defName="IO_ShipNavigationConsole"]</xpath>
+      <value>
+        <li Class="InterstellarOdyssey.ShipPartRoleExtension">
+          <roles>
+            <li>NavigationConsole</li>
+            <li>Structure</li>
+          </roles>
+        </li>
+      </value>
+    </match>
+  </Operation>
+
+  <Operation Class="PatchOperationConditional">
+    <xpath>/Defs/ThingDef[defName="GravshipHull" or defName="ShipHull" or defName="HullWall"]</xpath>
+    <match Class="PatchOperationAddModExtension">
+      <xpath>/Defs/ThingDef[defName="GravshipHull" or defName="ShipHull" or defName="HullWall"]</xpath>
+      <value>
+        <li Class="InterstellarOdyssey.ShipPartRoleExtension">
+          <roles>
+            <li>HullBoundary</li>
+            <li>Structure</li>
+          </roles>
+        </li>
+      </value>
+    </match>
+  </Operation>
+	<Operation Class="PatchOperationConditional">
+		<xpath>/Defs/ThingDef[defName="Vac barrier" or defName="Door" or defName="ShipDoor"]</xpath>
+		<match Class="PatchOperationAddModExtension">
+			<xpath>/Defs/ThingDef[defName="Vac barrier" or defName="Door" or defName="ShipDoor"]</xpath>
+			<value>
+				<li Class="InterstellarOdyssey.ShipPartRoleExtension">
+					<roles>
+						<li>HullBoundary</li>
+						<li>Structure</li>
+					</roles>
+				</li>
+			</value>
+		</match>
+	</Operation>
+	<Operation Class="PatchOperationConditional">
+		<xpath>/Defs/TerrainDef[defName="GravshipDeck" or defName="GravshipFloor" or defName="GravshipSuperstructure" or defName="ShipDeck" or defName="ShipFloor" or defName="Substructure" or defName="Substruscure"]</xpath>
+		<match Class="PatchOperationAddModExtension">
+			<xpath>/Defs/TerrainDef[defName="GravshipDeck" or defName="GravshipFloor" or defName="GravshipSuperstructure" or defName="ShipDeck" or defName="ShipFloor" or defName="Substructure" or defName="Substruscure"]</xpath>
+			<value>
+				<li Class="InterstellarOdyssey.ShipPartRoleExtension">
+					<isShipFloor>true</isShipFloor>
+				</li>
+			</value>
+		</match>
+	</Operation>
+
+
+</Patch>

@@ -5,6 +5,7 @@ using RimWorld;
 using RimWorld.Planet;
 using UnityEngine;
 using Verse;
+using ShipPropulsionUtility = InterstellarOdyssey.ShipPropulsionUtility;
 
 namespace InterstellarOdyssey
 {
@@ -236,49 +237,32 @@ namespace InterstellarOdyssey
 
             private static bool HasCore(ShipClusterData cluster)
             {
-                return cluster != null && cluster.structuralThings.Any(IsCore);
+                return cluster != null && cluster.structuralThings.Any(ShipPartUtility.IsCore);
             }
 
             private static bool HasEngine(ShipClusterData cluster)
             {
-                return cluster != null && cluster.structuralThings.Any(IsEngine);
+                return cluster != null && cluster.structuralThings.Any(ShipPartUtility.IsEngine);
             }
 
             private static bool HasNavigationConsole(ShipClusterData cluster)
             {
-                return cluster != null && cluster.structuralThings.Any(IsNavigationConsole);
+                return cluster != null && cluster.structuralThings.Any(ShipPartUtility.IsNavigationConsole);
             }
-
             private static bool IsCore(Thing thing)
             {
-                string defName = (thing?.def?.defName ?? string.Empty).ToLowerInvariant();
-
-                if (defName.Contains("gravcore") || defName.Contains("shipcore"))
-                    return true;
-
-                return defName.Contains("core") && (defName.Contains("ship") || defName.Contains("grav"));
+                return ShipPartUtility.IsCore(thing);
             }
 
             private static bool IsEngine(Thing thing)
             {
-                string defName = (thing?.def?.defName ?? string.Empty).ToLowerInvariant();
-
-                if (defName.Contains("gravengine") || defName.Contains("shipengine"))
-                    return true;
-
-                if (defName.Contains("thruster"))
-                    return true;
-
-                return defName.Contains("engine") && (defName.Contains("ship") || defName.Contains("grav"));
+                return ShipPartUtility.IsEngine(thing);
             }
 
             private static bool IsNavigationConsole(Thing thing)
             {
-                string defName = thing?.def?.defName ?? string.Empty;
-                string lower = defName.ToLowerInvariant();
-                return lower.Contains("navigationconsole") || lower.Contains("pilotconsole") || lower.Contains("shipnavigationconsole");
+                return ShipPartUtility.IsNavigationConsole(thing);
             }
-
             private static bool HasHullBoundaryAt(Map map, IntVec3 cell)
             {
                 if (map == null || !cell.InBounds(map))
@@ -294,14 +278,7 @@ namespace InterstellarOdyssey
                     if (thing.def.category != ThingCategory.Building)
                         continue;
 
-                    if (thing.def.IsDoor)
-                        return true;
-
-                    if (thing.def.passability == Traversability.Impassable)
-                        return true;
-
-                    string defName = (thing.def.defName ?? string.Empty).ToLowerInvariant();
-                    if (defName.Contains("hull") || defName.Contains("wall"))
+                    if (ShipPartUtility.IsHullBoundary(thing))
                         return true;
                 }
 
