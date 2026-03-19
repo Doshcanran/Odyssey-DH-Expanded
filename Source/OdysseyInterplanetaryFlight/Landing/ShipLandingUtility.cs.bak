@@ -210,16 +210,7 @@ namespace InterstellarOdyssey
 
                 try
                 {
-                    // Явно выставляем ротацию на Thing перед спавном,
-                    // чтобы она не сбрасывалась в North при восстановлении из сейва.
-                    if (thing is Building building)
-                    {
-                        var rotField = typeof(Thing).GetField("rotation",
-                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                        rotField?.SetValue(thing, entry.rotation);
-                    }
-
-                    GenSpawn.Spawn(thing, desiredCell, map, entry.rotation, WipeMode.Vanish);
+                    GenSpawn.Spawn(thing, desiredCell, map, WipeMode.Vanish);
                     if (restoredAnchor == null && ShipPartUtility.IsShipStructure(thing))
                         restoredAnchor = thing;
                 }

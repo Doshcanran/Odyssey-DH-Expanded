@@ -12,31 +12,11 @@ namespace InterstellarOdyssey
         {
             public Thing thing;
             public IntVec3 offset = IntVec3.Zero;
-            public Rot4 rotation = Rot4.North;
-
-            // Явно сохраняем числовое значение ротации (0=N,1=E,2=S,3=W),
-            // чтобы не зависеть от внутреннего состояния Thing после деспавна и загрузки сейва.
-            private int rotationInt = 0;
 
             public void ExposeData()
             {
                 Scribe_Deep.Look(ref thing, "thing");
                 Scribe_Values.Look(ref offset, "offset", IntVec3.Zero);
-
-                // При сохранении — берём из rotation, при загрузке — восстанавливаем в rotation
-                if (Scribe.mode == LoadSaveMode.Saving)
-                    rotationInt = rotation.AsInt;
-
-                Scribe_Values.Look(ref rotationInt, "rotationInt", 0);
-
-                if (Scribe.mode == LoadSaveMode.PostLoadInit)
-                    rotation = new Rot4(rotationInt);
-
-                // Для обратной совместимости со старыми сейвами, где rotationInt не было
-                Scribe_Values.Look(ref rotation, "rotation", Rot4.North);
-
-                if (Scribe.mode == LoadSaveMode.PostLoadInit)
-                    rotation = new Rot4(rotationInt);
             }
         }
 

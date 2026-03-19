@@ -186,12 +186,10 @@ namespace InterstellarOdyssey
                     if (thing == null || thing.Destroyed || !thing.Spawned)
                         continue;
 
-                    Rot4 capturedRotation = thing.Rotation; // читаем пока thing ещё заспавнен
                     snapshot.buildings.Add(new ShipThingSnapshot
                     {
                         thing = thing,
-                        offset = thing.Position - anchorCell,
-                        rotation = capturedRotation
+                        offset = thing.Position - anchorCell
                     });
                     capturedThingIds.Add(thing.thingIDNumber);
                 }
