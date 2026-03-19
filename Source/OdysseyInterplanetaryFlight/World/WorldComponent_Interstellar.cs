@@ -19,6 +19,9 @@ namespace InterstellarOdyssey
         public List<ShipLocationRecord> shipLocations = new List<ShipLocationRecord>();
         public List<InterstellarDiagnosticEntry> diagnostics = new List<InterstellarDiagnosticEntry>();
         public bool generated;
+        public GalaxyWorldConfiguration galaxyConfig = new GalaxyWorldConfiguration();
+        public string selectedGalaxyId = "galaxy_0";
+        public string selectedSolarSystemId = "system_0";
 
         public WorldComponent_Interstellar(World world) : base(world)
         {
@@ -41,7 +44,7 @@ namespace InterstellarOdyssey
             for (int i = activeTravels.Count - 1; i >= 0; i--)
             {
                 ShipTransitRecord travel = activeTravels[i];
-                if (travel.stage != InterstellarTransitStage.InTransit)
+                if (travel == null || travel.stage != InterstellarTransitStage.InTransit)
                     continue;
 
                 ShipTransitEventUtility.TryProcessEvent(this, travel);
@@ -59,23 +62,101 @@ namespace InterstellarOdyssey
             Scribe_Collections.Look(ref activeTravels, "activeTravels", LookMode.Deep);
             Scribe_Collections.Look(ref shipLocations, "shipLocations", LookMode.Deep);
             Scribe_Collections.Look(ref diagnostics, "diagnostics", LookMode.Deep);
+            Scribe_Deep.Look(ref galaxyConfig, "galaxyConfig");
+            Scribe_Values.Look(ref selectedGalaxyId, "selectedGalaxyId", "galaxy_0");
+            Scribe_Values.Look(ref selectedSolarSystemId, "selectedSolarSystemId", "system_0");
 
             if (nodes == null) nodes = new List<OrbitalNode>();
             if (activeTravels == null) activeTravels = new List<ShipTransitRecord>();
             if (shipLocations == null) shipLocations = new List<ShipLocationRecord>();
             if (diagnostics == null) diagnostics = new List<InterstellarDiagnosticEntry>();
+            if (galaxyConfig == null) galaxyConfig = GalaxyConfigUtility.CreateDefaultConfiguration();
 
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
+            {
+                GalaxyConfigUtility.EnsureConsistency(galaxyConfig);
+                if (string.IsNullOrEmpty(selectedGalaxyId))
+                    selectedGalaxyId = galaxyConfig.galaxies.FirstOrDefault()?.id ?? "galaxy_0";
                 EnsureLocationRecords();
+            }
         }
 
         public void GenerateIfNeeded()
         {
-            if (generated && nodes.Count > 0)
+            if (generated && nodes != null && nodes.Count > 0)
                 return;
 
-            nodes = DefaultOrbitalNodeFactory.CreateDefaultNodes();
+            if (galaxyConfig == null || galaxyConfig.galaxies == null || galaxyConfig.galaxies.Count == 0)
+            {
+                galaxyConfig = CloneConfig(InterstellarOdysseyMod.PendingGalaxyConfig) ?? GalaxyConfigUtility.CreateDefaultConfiguration();
+            }
+
+            GalaxyConfigUtility.EnsureConsistency(galaxyConfig);
+            PlanetArchiveUtility.PrepareArchivesForAllPlanets(galaxyConfig);
+            nodes = GalaxyOrbitalNodeFactory.CreateNodes(galaxyConfig);
+            if (nodes == null || nodes.Count == 0)
+                nodes = DefaultOrbitalNodeFactory.CreateDefaultNodes();
+
+            selectedGalaxyId = ResolveInitialGalaxyId();
+            selectedSolarSystemId = GetGalaxyById(selectedGalaxyId)?.solarSystemId ?? "system_0";
             generated = true;
+        }
+
+        public GalaxyDefinition GetGalaxyById(string galaxyId)
+        {
+            return galaxyConfig?.galaxies?.FirstOrDefault(g => g != null && g.id == galaxyId);
+        }
+
+        public IEnumerable<GalaxyDefinition> GetGalaxies()
+        {
+            return galaxyConfig?.galaxies ?? Enumerable.Empty<GalaxyDefinition>();
+        }
+
+        public IEnumerable<OrbitalNode> GetNodesForGalaxy(string galaxyId)
+        {
+            GenerateIfNeeded();
+
+            if (string.IsNullOrEmpty(galaxyId))
+                galaxyId = selectedGalaxyId;
+
+            return nodes.Where(n => n != null && n.galaxyId == galaxyId);
+        }
+
+        public IEnumerable<OrbitalNode> GetNodesForSelectedGalaxy()
+        {
+            return GetNodesForGalaxy(selectedGalaxyId);
+        }
+
+        public IEnumerable<PlanetDefinition_IO> GetPlanetsForGalaxy(string galaxyId)
+        {
+            GalaxyDefinition galaxy = GetGalaxyById(galaxyId);
+            return galaxy?.planets ?? Enumerable.Empty<PlanetDefinition_IO>();
+        }
+
+        public void SelectGalaxy(string galaxyId)
+        {
+            if (string.IsNullOrEmpty(galaxyId))
+                return;
+
+            if (GetGalaxyById(galaxyId) == null)
+                return;
+
+            selectedGalaxyId = galaxyId;
+            selectedSolarSystemId = GetGalaxyById(galaxyId)?.solarSystemId ?? selectedSolarSystemId;
+        }
+
+        public string GetDefaultHomeNodeId()
+        {
+            GenerateIfNeeded();
+            PlanetDefinition_IO startPlanet = GalaxyConfigUtility.GetStartPlanet(galaxyConfig);
+            return startPlanet?.id ?? "homeworld";
+        }
+
+        public string ResolveInitialGalaxyId()
+        {
+            PlanetDefinition_IO startPlanet = GalaxyConfigUtility.GetStartPlanet(galaxyConfig);
+            OrbitalNode node = nodes.FirstOrDefault(n => n != null && n.id == startPlanet?.id);
+            return node?.galaxyId ?? galaxyConfig.galaxies.FirstOrDefault()?.id ?? "galaxy_0";
         }
 
         public bool IsShipTravelling(Thing ship)
@@ -83,21 +164,21 @@ namespace InterstellarOdyssey
             if (ship == null)
                 return false;
 
-            return activeTravels.Any(t => t.shipThingId == ship.thingIDNumber && t.stage != InterstellarTransitStage.None);
+            return activeTravels.Any(t => t != null && t.shipThingId == ship.thingIDNumber && t.stage != InterstellarTransitStage.None);
         }
 
         public OrbitalNode GetCurrentNodeForShip(Thing ship)
         {
             string nodeId = GetCurrentNodeIdForShip(ship);
-            return GetNodeById(nodeId) ?? GetNodeById("homeworld") ?? nodes.FirstOrDefault();
+            return GetNodeById(nodeId) ?? GetNodeById(GetDefaultHomeNodeId()) ?? nodes.FirstOrDefault();
         }
 
         public string GetCurrentNodeIdForShip(Thing ship)
         {
             if (ship == null)
-                return "homeworld";
+                return GetDefaultHomeNodeId();
 
-            ShipTransitRecord record = activeTravels.FirstOrDefault(t => t.shipThingId == ship.thingIDNumber);
+            ShipTransitRecord record = activeTravels.FirstOrDefault(t => t != null && t.shipThingId == ship.thingIDNumber);
             if (record != null)
             {
                 if (record.stage == InterstellarTransitStage.AwaitingLanding)
@@ -112,22 +193,29 @@ namespace InterstellarOdyssey
                 return location.currentNodeId;
 
             EnsureHomeworldLocation(ship);
-            return "homeworld";
+            return GetDefaultHomeNodeId();
         }
 
         public OrbitalNode GetNodeById(string id)
         {
-            return nodes.FirstOrDefault(n => n.id == id);
+            GenerateIfNeeded();
+            return nodes.FirstOrDefault(n => n != null && n.id == id);
         }
 
         public string ResolveNodeLabel(OrbitalNode node)
         {
-            return node != null ? node.label : "Неизвестно";
+            if (node == null)
+                return "Неизвестно";
+
+            if (!string.IsNullOrEmpty(node.label))
+                return node.label;
+
+            return node.id ?? "Неизвестно";
         }
 
         public IEnumerable<ShipTransitRecord> GetLandingReadyTravels()
         {
-            return activeTravels.Where(t => t.stage == InterstellarTransitStage.AwaitingLanding);
+            return activeTravels.Where(t => t != null && t.stage == InterstellarTransitStage.AwaitingLanding);
         }
 
         public bool StartTravel(Thing shipAnchor, OrbitalNode destination)
@@ -142,7 +230,7 @@ namespace InterstellarOdyssey
             }
 
             string currentNodeId = GetCurrentNodeIdForShip(shipAnchor);
-            OrbitalNode current = GetNodeById(currentNodeId) ?? GetNodeById("homeworld") ?? nodes.FirstOrDefault();
+            OrbitalNode current = GetNodeById(currentNodeId) ?? GetNodeById(GetDefaultHomeNodeId()) ?? nodes.FirstOrDefault();
             if (current != null && current.id == destination.id)
             {
                 Messages.Message("Корабль уже находится у этой цели.", MessageTypeDefOf.RejectInput, false);
@@ -189,6 +277,7 @@ namespace InterstellarOdyssey
             Dictionary<Thing, float> fuelState = ShipPropulsionUtility.SnapshotFuelState(launchCluster);
             bool fuelCommitted = false;
             bool travelAdded = false;
+            bool intergalactic = current != null && !string.Equals(current.galaxyId, destination.galaxyId, StringComparison.Ordinal);
 
             try
             {
@@ -204,8 +293,16 @@ namespace InterstellarOdyssey
                 ShipPropulsionUtility.ConsumeFuel(launchCluster, propulsion.fuelNeeded);
                 fuelCommitted = true;
 
-                float days = propulsion.travelDays > 0f ? propulsion.travelDays : Mathf.Max(0.2f, OrbitalMath.Distance(current, destination) / 45f);
-                int durationTicks = Mathf.Max(2500, Mathf.RoundToInt(days * GenDate.TicksPerDay));
+                int durationTicks;
+                if (intergalactic)
+                {
+                    durationTicks = GenDate.TicksPerDay;
+                }
+                else
+                {
+                    float days = propulsion.travelDays > 0f ? propulsion.travelDays : Mathf.Max(0.2f, OrbitalMath.Distance(current, destination) / 45f);
+                    durationTicks = Mathf.Max(2500, Mathf.RoundToInt(days * GenDate.TicksPerDay));
+                }
 
                 record = new ShipTransitRecord
                 {
@@ -218,22 +315,28 @@ namespace InterstellarOdyssey
                     arrivalTick = Find.TickManager.TicksGame + durationTicks,
                     stage = InterstellarTransitStage.InTransit,
                     snapshot = snapshot,
-                    preferredLandingMode = ShipLandingMode.Precise
+                    preferredLandingMode = ShipLandingMode.Precise,
+                    intergalacticTravel = intergalactic,
+                    sourceGalaxyId = current?.galaxyId,
+                    destinationGalaxyId = destination.galaxyId
                 };
 
                 ShipTransitEventUtility.ScheduleNextEvent(record, Find.TickManager.TicksGame);
                 activeTravels.Add(record);
                 travelAdded = true;
 
-                // Создаём карту вакуума с кораблём внутри
                 if (!VoidMapUtility.CreateVoidMap(record))
                 {
                     AddDiagnostic("Launch", "Предупреждение", "Не удалось создать карту вакуума. Перелёт продолжается без неё.", launchDiagnostic, InterstellarDiagnosticSeverity.Warning);
                     Messages.Message("Карта вакуума не создана, но перелёт начат.", MessageTypeDefOf.NeutralEvent, false);
                 }
 
+                string message = intergalactic
+                    ? "Начат тестовый межгалактический перелёт: " + record.shipLabel + " → " + ResolveNodeLabel(destination) + ". Время полёта: 1 день."
+                    : "Начат межпланетный перелёт: " + record.shipLabel + " → " + ResolveNodeLabel(destination) + ". Израсходовано топлива: " + propulsion.fuelNeeded.ToString("0.#");
+
                 AddDiagnostic("Launch", "Перелёт начат", record.shipLabel + " → " + ResolveNodeLabel(destination), launchDiagnostic, InterstellarDiagnosticSeverity.Info);
-                Messages.Message("Начат межпланетный перелёт: " + record.shipLabel + " → " + ResolveNodeLabel(destination) + ". Израсходовано топлива: " + propulsion.fuelNeeded.ToString("0.#"), MessageTypeDefOf.PositiveEvent, false);
+                Messages.Message(message, MessageTypeDefOf.PositiveEvent, false);
                 return true;
             }
             catch (Exception ex)
@@ -241,7 +344,6 @@ namespace InterstellarOdyssey
                 if (travelAdded && record != null)
                     activeTravels.Remove(record);
 
-                // Если карта вакуума была создана до ошибки — удаляем её
                 if (record != null && record.voidMapTile >= 0)
                 {
                     try { VoidMapUtility.DestroyVoidMap(record); }
@@ -293,10 +395,16 @@ namespace InterstellarOdyssey
                 return false;
             }
 
-            // Если у нас есть карта вакуума — захватываем актуальный снапшот с неё
-            // (экипаж мог перемещаться, предметы — перекладываться)
             if (VoidMapUtility.HasVoidMap(record))
-                VoidMapUtility.RecaptureShipFromVoidMap(record);
+            {
+                bool recaptured = VoidMapUtility.RecaptureShipFromVoidMap(record);
+                if (!recaptured)
+                {
+                    AddDiagnostic("Landing", "Посадка отменена", "Не удалось захватить актуальное состояние корабля с карты вакуума.", record.shipLabel, InterstellarDiagnosticSeverity.Error);
+                    Messages.Message("Посадка отменена: не удалось захватить актуальное состояние корабля с карты вакуума.", MessageTypeDefOf.RejectInput, false);
+                    return false;
+                }
+            }
 
             if (!ShipLandingUtility.TryFindLandingCenter(record.snapshot, map, mode, out IntVec3 center))
                 center = map.Center;
@@ -315,11 +423,11 @@ namespace InterstellarOdyssey
 
             SetCurrentNodeForShip(restoredAnchor, record.destinationId, record.shipDefName, record.shipLabel, record.shipThingId);
             activeTravels.Remove(record);
-
-            // Удаляем карту вакуума теперь, когда корабль успешно приземлился
             VoidMapUtility.DestroyVoidMap(record);
 
             OrbitalNode destination = GetNodeById(record.destinationId);
+            SelectGalaxy(destination?.galaxyId ?? selectedGalaxyId);
+
             string detail = "Режим: " + ResolveLandingModeLabel(mode) + "\nОписание: " + ShipLandingUtility.DescribeMode(mode) + "\nПоследствия: " + ShipLandingUtility.DescribeModeConsequences(mode);
             AddDiagnostic("Landing", "Посадка завершена", record.shipLabel + " у цели " + ResolveNodeLabel(destination), detail, InterstellarDiagnosticSeverity.Info);
             Messages.Message("Корабль " + (record.shipLabel ?? "без названия") + " совершил посадку у цели " + ResolveNodeLabel(destination) + " [" + ResolveLandingModeLabel(mode) + "].", MessageTypeDefOf.PositiveEvent, false);
@@ -345,12 +453,20 @@ namespace InterstellarOdyssey
                 record.snapshot.currentNodeId = record.destinationId;
 
             OrbitalNode destination = GetNodeById(record.destinationId);
-            if (destination != null && destination.id != "homeworld")
-                OrbitalNodeMapUtility.ResolveOrCreateMapForNode(destination);
+            if (destination != null)
+            {
+                if (destination.id != GetDefaultHomeNodeId())
+                    OrbitalNodeMapUtility.ResolveOrCreateMapForNode(destination);
+
+                SelectGalaxy(destination.galaxyId);
+            }
 
             string details = "Рекомендуемый режим: " + ResolveLandingModeLabel(record.preferredLandingMode) + "\n" +
                              "Описание: " + ShipLandingUtility.DescribeMode(record.preferredLandingMode) + "\n" +
                              "Последствия: " + ShipLandingUtility.DescribeModeConsequences(record.preferredLandingMode);
+
+            if (record.intergalacticTravel)
+                details += "\nРежим перехода: межгалактический тестовый перелёт (1 день).";
 
             AddDiagnostic("Transit", "Выход на орбиту", record.shipLabel + " достиг цели " + ResolveNodeLabel(destination), details, InterstellarDiagnosticSeverity.Info);
             Messages.Message("Корабль вышел на орбиту цели: " + ResolveNodeLabel(destination) + ". Рекомендуемый режим посадки: " + ResolveLandingModeLabel(record.preferredLandingMode) + ".", MessageTypeDefOf.PositiveEvent, false);
@@ -374,7 +490,7 @@ namespace InterstellarOdyssey
                         shipThingId = travel.shipThingId,
                         shipDefName = travel.shipDefName,
                         shipLabel = travel.shipLabel,
-                        currentNodeId = !string.IsNullOrEmpty(travel.sourceId) ? travel.sourceId : "homeworld"
+                        currentNodeId = !string.IsNullOrEmpty(travel.sourceId) ? travel.sourceId : GetDefaultHomeNodeId()
                     });
                 }
             }
@@ -385,12 +501,12 @@ namespace InterstellarOdyssey
             if (ship == null)
                 return;
 
-            SetCurrentNodeForShip(ship, "homeworld", ship.def?.defName, ship.LabelCap);
+            SetCurrentNodeForShip(ship, GetDefaultHomeNodeId(), ship.def?.defName, ship.LabelCap);
         }
 
         private void EnsureCurrentNodeForShip(Thing ship, string nodeId)
         {
-            SetCurrentNodeForShip(ship, string.IsNullOrEmpty(nodeId) ? "homeworld" : nodeId, ship?.def?.defName, ship?.LabelCap);
+            SetCurrentNodeForShip(ship, string.IsNullOrEmpty(nodeId) ? GetDefaultHomeNodeId() : nodeId, ship?.def?.defName, ship?.LabelCap);
         }
 
         private ShipLocationRecord FindLocationRecord(Thing ship)
@@ -429,7 +545,7 @@ namespace InterstellarOdyssey
             location.shipThingId = thingId;
             location.shipDefName = defName;
             location.shipLabel = label;
-            location.currentNodeId = string.IsNullOrEmpty(nodeId) ? "homeworld" : nodeId;
+            location.currentNodeId = string.IsNullOrEmpty(nodeId) ? GetDefaultHomeNodeId() : nodeId;
         }
 
         public void AddDiagnostic(string category, string title, string message, string details, InterstellarDiagnosticSeverity severity)
@@ -486,6 +602,81 @@ namespace InterstellarOdyssey
         public void ClearDiagnostics()
         {
             diagnostics?.Clear();
+        }
+
+        private static GalaxyWorldConfiguration CloneConfig(GalaxyWorldConfiguration source)
+        {
+            if (source == null)
+                return null;
+
+            GalaxyWorldConfiguration copy = new GalaxyWorldConfiguration
+            {
+                selectedGalaxyCount = source.selectedGalaxyCount,
+                galaxies = new List<GalaxyDefinition>()
+            };
+
+            if (source.galaxies != null)
+            {
+                foreach (GalaxyDefinition galaxy in source.galaxies)
+                {
+                    if (galaxy == null)
+                        continue;
+
+                    GalaxyDefinition gCopy = new GalaxyDefinition
+                    {
+                        id = galaxy.id,
+                        label = galaxy.label,
+                        hasStations = galaxy.hasStations,
+                        hasAsteroidBelts = galaxy.hasAsteroidBelts,
+                        hasPlanets = galaxy.hasPlanets,
+                        stationCount = galaxy.stationCount,
+                        beltCount = galaxy.beltCount,
+                        planetCount = galaxy.planetCount,
+                        solarSystemId = galaxy.solarSystemId,
+                        planets = new List<PlanetDefinition_IO>()
+                    };
+
+                    if (galaxy.planets != null)
+                    {
+                        foreach (PlanetDefinition_IO planet in galaxy.planets)
+                        {
+                            if (planet == null)
+                                continue;
+
+                            gCopy.planets.Add(new PlanetDefinition_IO
+                            {
+                                id = planet.id,
+                                label = planet.label,
+                                overallRainfall = planet.overallRainfall,
+                                overallTemperature = planet.overallTemperature,
+                                overallPopulation = planet.overallPopulation,
+                                pollution = planet.pollution,
+                                coverage = planet.coverage,
+                                seedOffset = planet.seedOffset,
+                                startPlanet = planet.startPlanet,
+                                useVanillaDefaults = planet.useVanillaDefaults,
+                                archive = planet.archive == null ? null : new PlanetArchiveData
+                                {
+                                    seed = planet.archive.seed,
+                                    cachedWorldTileCount = planet.archive.cachedWorldTileCount,
+                                    generated = planet.archive.generated,
+                                    visited = planet.archive.visited,
+                                    generatedLabel = planet.archive.generatedLabel,
+                                    cachedCoverage = planet.archive.cachedCoverage,
+                                    cachedRainfall = planet.archive.cachedRainfall,
+                                    cachedTemperature = planet.archive.cachedTemperature,
+                                    cachedPopulation = planet.archive.cachedPopulation,
+                                    cachedPollution = planet.archive.cachedPollution
+                                }
+                            });
+                        }
+                    }
+
+                    copy.galaxies.Add(gCopy);
+                }
+            }
+
+            return copy;
         }
     }
 }
