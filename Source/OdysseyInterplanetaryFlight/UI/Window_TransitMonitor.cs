@@ -92,6 +92,18 @@ namespace InterstellarOdyssey
                             Find.WindowStack.Add(new Window_ShipLanding(travel));
                     }
 
+                    // Кнопка перехода на карту вакуума
+                    if (VoidMapUtility.HasVoidMap(travel))
+                    {
+                        float boardBtnX = (travel.stage == InterstellarTransitStage.AwaitingLanding) ? row.x + 126f : row.x + 8f;
+                        if (Widgets.ButtonText(new Rect(boardBtnX, row.y + 88f, 110f, 22f), "На борт"))
+                        {
+                            Map voidMap = VoidMapUtility.GetVoidMap(travel.voidMapTile);
+                            if (voidMap != null)
+                                Current.Game.CurrentMap = voidMap;
+                        }
+                    }
+
                     curY += 120f;
                 }
 

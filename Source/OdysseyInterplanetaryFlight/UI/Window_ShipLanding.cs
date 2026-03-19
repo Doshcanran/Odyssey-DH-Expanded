@@ -33,6 +33,20 @@ namespace InterstellarOdyssey
             OrbitalNode destination = travel != null ? data.GetNodeById(travel.destinationId) : null;
             Widgets.Label(new Rect(inRect.x, inRect.y + 32f, inRect.width, 24f), "Цель: " + data.ResolveNodeLabel(destination));
 
+            // Кнопка «На борт» — перейти на карту вакуума
+            if (travel != null && VoidMapUtility.HasVoidMap(travel))
+            {
+                if (Widgets.ButtonText(new Rect(inRect.xMax - 160f, inRect.y + 30f, 150f, 26f), "На борт корабля"))
+                {
+                    Map voidMap = VoidMapUtility.GetVoidMap(travel.voidMapTile);
+                    if (voidMap != null)
+                    {
+                        Current.Game.CurrentMap = voidMap;
+                        Close();
+                    }
+                }
+            }
+
             Rect modeRect = new Rect(inRect.x, inRect.y + 62f, inRect.width, 170f);
             DrawModeSelector(modeRect, destination);
 
@@ -119,6 +133,8 @@ namespace InterstellarOdyssey
                 if (!maps.Contains(map))
                     maps.Add(map);
 
+            // Не включаем карту вакуума в список посадки — она является источником,
+            // а не пунктом назначения. Снапшот будет захвачен с неё автоматически.
             return maps;
         }
     }

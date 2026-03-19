@@ -225,6 +225,13 @@ namespace InterstellarOdyssey
                 activeTravels.Add(record);
                 travelAdded = true;
 
+                // Создаём карту вакуума с кораблём внутри
+                if (!VoidMapUtility.CreateVoidMap(record))
+                {
+                    AddDiagnostic("Launch", "Предупреждение", "Не удалось создать карту вакуума. Перелёт продолжается без неё.", launchDiagnostic, InterstellarDiagnosticSeverity.Warning);
+                    Messages.Message("Карта вакуума не создана, но перелёт начат.", MessageTypeDefOf.NeutralEvent, false);
+                }
+
                 AddDiagnostic("Launch", "Перелёт начат", record.shipLabel + " → " + ResolveNodeLabel(destination), launchDiagnostic, InterstellarDiagnosticSeverity.Info);
                 Messages.Message("Начат межпланетный перелёт: " + record.shipLabel + " → " + ResolveNodeLabel(destination) + ". Израсходовано топлива: " + propulsion.fuelNeeded.ToString("0.#"), MessageTypeDefOf.PositiveEvent, false);
                 return true;
@@ -233,6 +240,13 @@ namespace InterstellarOdyssey
             {
                 if (travelAdded && record != null)
                     activeTravels.Remove(record);
+
+                // Если карта вакуума была создана до ошибки — удаляем её
+                if (record != null && record.voidMapTile >= 0)
+                {
+                    try { VoidMapUtility.DestroyVoidMap(record); }
+                    catch (Exception vmEx) { Log.Warning("[InterstellarOdyssey] Не удалось удалить карту вакуума при откате: " + vmEx.Message); }
+                }
 
                 Log.Error("[InterstellarOdyssey] StartTravel failed, performing rollback: " + ex);
                 AddDiagnostic("Launch", "Ошибка старта", ex.Message, ex.ToString(), InterstellarDiagnosticSeverity.Error);
@@ -279,6 +293,11 @@ namespace InterstellarOdyssey
                 return false;
             }
 
+            // Если у нас есть карта вакуума — захватываем актуальный снапшот с неё
+            // (экипаж мог перемещаться, предметы — перекладываться)
+            if (VoidMapUtility.HasVoidMap(record))
+                VoidMapUtility.RecaptureShipFromVoidMap(record);
+
             if (!ShipLandingUtility.TryFindLandingCenter(record.snapshot, map, mode, out IntVec3 center))
                 center = map.Center;
 
@@ -296,6 +315,9 @@ namespace InterstellarOdyssey
 
             SetCurrentNodeForShip(restoredAnchor, record.destinationId, record.shipDefName, record.shipLabel, record.shipThingId);
             activeTravels.Remove(record);
+
+            // Удаляем карту вакуума теперь, когда корабль успешно приземлился
+            VoidMapUtility.DestroyVoidMap(record);
 
             OrbitalNode destination = GetNodeById(record.destinationId);
             string detail = "Режим: " + ResolveLandingModeLabel(mode) + "\nОписание: " + ShipLandingUtility.DescribeMode(mode) + "\nПоследствия: " + ShipLandingUtility.DescribeModeConsequences(mode);

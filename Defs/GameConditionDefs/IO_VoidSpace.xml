@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Defs>
+
+  <GameConditionDef>
+    <defName>IO_VoidSpaceCondition</defName>
+    <label>открытый космос</label>
+    <description>Корабль находится в открытом космосе. Вакуум, космический холод, нет погоды.</description>
+    <conditionClass>InterstellarOdyssey.GameCondition_VoidSpace</conditionClass>
+  </GameConditionDef>
+
+</Defs>

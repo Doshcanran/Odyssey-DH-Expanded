@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Defs>
+
+  <WorldObjectDef>
+    <defName>IO_ShipInTransit</defName>
+    <label>корабль в полёте</label>
+    <description>Корабль, находящийся в межпланетном перелёте.</description>
+    <worldObjectClass>InterstellarOdyssey.WorldObject_ShipInTransit</worldObjectClass>
+    <selectable>true</selectable>
+    <neverMultiSelect>true</neverMultiSelect>
+    <useDynamicDrawer>false</useDynamicDrawer>
+    <expandingIconTexture>UI/Overlays/ExpandingIcons/Ship</expandingIconTexture>
+    <expandingIconPriority>1000</expandingIconPriority>
+  </WorldObjectDef>
+
+</Defs>

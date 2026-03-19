@@ -48,6 +48,33 @@ namespace InterstellarOdyssey
                 }
             };
 
+            // Кнопка «На борт» если корабль в данный момент в полёте с картой вакуума
+            WorldComponent_Interstellar wc = Find.World?.GetComponent<WorldComponent_Interstellar>();
+            if (wc != null)
+            {
+                foreach (ShipTransitRecord tr in wc.activeTravels)
+                {
+                    if (tr == null || !VoidMapUtility.HasVoidMap(tr))
+                        continue;
+
+                    Map voidMap = VoidMapUtility.GetVoidMap(tr.voidMapTile);
+                    if (voidMap == null)
+                        continue;
+
+                    ShipTransitRecord captured = tr;
+                    yield return new Command_Action
+                    {
+                        defaultLabel = "На борт: " + (tr.shipLabel ?? "корабль"),
+                        defaultDesc = "Перейти на карту корабля в полёте.",
+                        icon = BaseContent.BadTex,
+                        action = delegate
+                        {
+                            Current.Game.CurrentMap = VoidMapUtility.GetVoidMap(captured.voidMapTile) ?? Current.Game.CurrentMap;
+                        }
+                    };
+                }
+            }
+
             if (Prefs.DevMode)
             {
                 yield return new Command_Action

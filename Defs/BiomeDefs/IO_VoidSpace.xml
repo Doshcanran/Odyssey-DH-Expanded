@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Defs>
+
+  <BiomeDef>
+    <defName>IO_VoidSpace</defName>
+    <label>вакуум</label>
+    <description>Открытый космос. Нет воздуха, нет воды, нет жизни.</description>
+    <workerClass>InterstellarOdyssey.BiomeWorker_VoidSpace</workerClass>
+    <canBuildBase>false</canBuildBase>
+    <canAutoChoose>false</canAutoChoose>
+    <allowRoads>false</allowRoads>
+    <allowRivers>false</allowRivers>
+    <movementDifficulty>1</movementDifficulty>
+    <forageability>0</forageability>
+    <wildPlantRegrowDays>9999</wildPlantRegrowDays>
+    <animalDensity>0</animalDensity>
+    <plantDensity>0</plantDensity>
+    <wildPlantsCareAboutLocalFertility>false</wildPlantsCareAboutLocalFertility>
+    <terrainsByFertility>
+      <li>
+        <terrain>IO_VoidFloor</terrain>
+        <min>0</min>
+        <max>1</max>
+      </li>
+    </terrainsByFertility>
+  </BiomeDef>
+
+</Defs>

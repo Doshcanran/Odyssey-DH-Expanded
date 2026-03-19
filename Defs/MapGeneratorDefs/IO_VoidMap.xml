@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Defs>
+
+  <!-- Пол вакуума — тёмный и НЕПРОХОДИМЫЙ.
+       Поселенцы не смогут ходить по открытому космосу, только по корабельному полу. -->
+  <TerrainDef>
+    <defName>IO_VoidFloor</defName>
+    <label>открытый космос</label>
+    <description>Пустота открытого космоса. Без скафандра — смерть.</description>
+    <texturePath>Terrain/Surfaces/PackedDirt</texturePath>
+    <edgeType>FadeRough</edgeType>
+    <renderPrecedence>400</renderPrecedence>
+    <color>(0.04, 0.04, 0.08)</color>
+    <passability>Impassable</passability>
+    <affordances />
+    <fertility>0</fertility>
+    <avoidWander>true</avoidWander>
+  </TerrainDef>
+
+  <!-- GenStepDef-обёртки -->
+  <GenStepDef>
+    <defName>IO_GenStep_VoidTerrain</defName>
+    <genStep Class="InterstellarOdyssey.GenStep_IO_VoidTerrain" />
+    <order>100</order>
+  </GenStepDef>
+
+  <GenStepDef>
+    <defName>IO_GenStep_PlaceShip</defName>
+    <genStep Class="InterstellarOdyssey.GenStep_IO_PlaceShipOnVoidMap" />
+    <order>200</order>
+  </GenStepDef>
+
+  <!-- Генератор карты вакуума -->
+  <MapGeneratorDef>
+    <defName>IO_VoidMapGenerator</defName>
+    <label>генератор карты космоса</label>
+    <genSteps>
+      <li>IO_GenStep_VoidTerrain</li>
+      <li>IO_GenStep_PlaceShip</li>
+    </genSteps>
+  </MapGeneratorDef>
+
+</Defs>

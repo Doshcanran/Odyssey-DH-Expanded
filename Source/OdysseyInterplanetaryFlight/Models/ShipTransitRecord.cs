@@ -26,6 +26,9 @@ namespace InterstellarOdyssey
             public int salvageComponents;
             public float travelDisruption;
 
+            // Тайл карты вакуума (-1 = карта не создана)
+            public int voidMapTile = -1;
+
             public float Progress
             {
                 get
@@ -56,6 +59,7 @@ namespace InterstellarOdyssey
                 Scribe_Values.Look(ref salvageSteel, "salvageSteel", 0);
                 Scribe_Values.Look(ref salvageComponents, "salvageComponents", 0);
                 Scribe_Values.Look(ref travelDisruption, "travelDisruption", 0f);
+                Scribe_Values.Look(ref voidMapTile, "voidMapTile", -1);
 
                 if (eventLog == null)
                     eventLog = new List<ShipTransitEvent>();
