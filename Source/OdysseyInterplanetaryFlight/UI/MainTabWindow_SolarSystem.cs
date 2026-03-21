@@ -23,10 +23,10 @@ namespace InterstellarOdyssey
             Widgets.Label(new Rect(inRect.x, inRect.y, Mathf.Min(inRect.width - 20f, 420f), 32f), "Солнечная система");
             Text.Font = GameFont.Small;
 
-            Rect tabsRect = new Rect(inRect.x, inRect.y + 40f, inRect.width - 20f, 32f);
-            GalaxyUiUtility.DrawGalaxyTabs(tabsRect, data);
+            Rect galaxyButtonsRect = new Rect(inRect.x, inRect.y + 40f, inRect.width - 20f, 80f);
+            float galaxyButtonsBottom = GalaxyUiUtility.DrawGalaxyTabs(galaxyButtonsRect, data);
 
-            Rect infoRect = new Rect(inRect.x, tabsRect.yMax + 8f, inRect.width, 24f);
+            Rect infoRect = new Rect(inRect.x, galaxyButtonsBottom + 8f, inRect.width, 24f);
             Widgets.Label(infoRect, "Активная галактика: " + (data.GetGalaxyById(data.selectedGalaxyId)?.label ?? data.selectedGalaxyId));
 
             Rect body = new Rect(inRect.x, infoRect.yMax + 8f, inRect.width, inRect.height - (infoRect.yMax - inRect.y) - 8f);

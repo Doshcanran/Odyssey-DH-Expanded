@@ -43,17 +43,17 @@ namespace InterstellarOdyssey
 
         public override void DoWindowContents(Rect inRect)
         {
-            Rect tabsRect = new Rect(inRect.x, inRect.y, inRect.width - 180f, 32f);
-            GalaxyUiUtility.DrawGalaxyTabs(tabsRect, Data);
-
-            Rect refreshButtonRect = new Rect(inRect.xMax - 160f, inRect.y, 160f, 32f);
+            Rect refreshButtonRect = new Rect(inRect.xMax - 160f, inRect.y + 4f, 160f, 32f);
             if (Widgets.ButtonText(refreshButtonRect, "Обновить проверку"))
                 RefreshValidationReport();
+
+            Rect galaxyButtonsRect = new Rect(inRect.x, inRect.y + 40f, inRect.width - 180f, 80f);
+            float galaxyButtonsBottom = GalaxyUiUtility.DrawGalaxyTabs(galaxyButtonsRect, Data);
 
             OrbitalNode current = Data.GetCurrentNodeForShip(ship);
             string infoText = "Текущая цель: " + Data.ResolveNodeLabel(current) + " | Галактика: " + (Data.GetGalaxyById(Data.selectedGalaxyId)?.label ?? Data.selectedGalaxyId);
             float infoHeight = Text.CalcHeight(infoText, inRect.width);
-            Rect infoRect = new Rect(inRect.x, tabsRect.yMax + 8f, inRect.width, infoHeight);
+            Rect infoRect = new Rect(inRect.x, galaxyButtonsBottom + 8f, inRect.width, infoHeight);
             Widgets.Label(infoRect, infoText);
 
             float statusHeight = Data.IsShipTravelling(ship) ? 24f : 0f;

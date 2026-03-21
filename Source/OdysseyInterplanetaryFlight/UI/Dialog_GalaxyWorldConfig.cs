@@ -12,6 +12,12 @@ namespace InterstellarOdyssey
         private readonly Dictionary<string, string> intBuffers = new Dictionary<string, string>();
         private readonly Dictionary<string, string> textBuffers = new Dictionary<string, string>();
 
+        private const float GalaxyBlockPadding = 8f;
+        private const float PlanetRowHeight = 150f;
+        private const float PlanetRowSpacing = 8f;
+        private const float PlanetsSectionPadding = 10f;
+        private const int MaxPlanetsToDraw = 6;
+
         public override Vector2 InitialSize => new Vector2(1180f, 820f);
 
         public Dialog_GalaxyWorldConfig(GalaxyWorldConfiguration config)
@@ -32,7 +38,11 @@ namespace InterstellarOdyssey
             DrawCountSelector(countRect);
 
             Rect outRect = new Rect(inRect.x, countRect.yMax + 10f, inRect.width, inRect.height - 96f);
-            float estimatedHeight = Mathf.Max(outRect.height, config.galaxies.Count * 436f + 80f);
+            float estimatedHeight = outRect.height;
+
+            for (int i = 0; i < config.galaxies.Count; i++)
+                estimatedHeight += CalculateGalaxyBlockHeight(config.galaxies[i]) + 12f;
+
             Rect viewRect = new Rect(0f, 0f, outRect.width - 16f, estimatedHeight);
 
             Widgets.BeginScrollView(outRect, ref scrollPos, viewRect);
@@ -41,7 +51,8 @@ namespace InterstellarOdyssey
             for (int i = 0; i < config.galaxies.Count; i++)
             {
                 GalaxyDefinition galaxy = config.galaxies[i];
-                Rect block = new Rect(0f, curY, viewRect.width, 420f);
+                float blockHeight = CalculateGalaxyBlockHeight(galaxy);
+                Rect block = new Rect(0f, curY, viewRect.width, blockHeight);
                 DrawGalaxyBlock(block, galaxy, i);
                 curY += block.height + 12f;
             }
@@ -55,6 +66,24 @@ namespace InterstellarOdyssey
                 InterstellarOdysseyMod.PendingGalaxyConfig = config;
                 Close();
             }
+        }
+
+        private float CalculateGalaxyBlockHeight(GalaxyDefinition galaxy)
+        {
+            int planetRows = Mathf.Min(galaxy.planets.Count, MaxPlanetsToDraw);
+            float planetsContentHeight = planetRows > 0
+                ? planetRows * PlanetRowHeight + (planetRows - 1) * PlanetRowSpacing
+                : 0f;
+
+            return GalaxyBlockPadding * 2f
+                + 24f // label field
+                + 12f
+                + 24f + 8f // stations
+                + 24f + 8f // belts
+                + 24f + 18f // planets
+                + 24f + 8f // "Планеты галактики"
+                + PlanetsSectionPadding * 2f
+                + planetsContentHeight;
         }
 
         private void DrawCountSelector(Rect rect)
@@ -94,7 +123,7 @@ namespace InterstellarOdyssey
         private void DrawGalaxyBlock(Rect rect, GalaxyDefinition galaxy, int index)
         {
             Widgets.DrawMenuSection(rect);
-            Rect inner = rect.ContractedBy(8f);
+            Rect inner = rect.ContractedBy(GalaxyBlockPadding);
 
             string labelKey = "galaxy_label_" + index;
             string labelBuffer = GetTextBuffer(labelKey, galaxy.label ?? ("Галактика " + (index + 1)));
@@ -121,14 +150,26 @@ namespace InterstellarOdyssey
             Widgets.Label(new Rect(inner.x, y, inner.width, 24f), "Планеты галактики");
             y += 28f;
 
-            float rowHeight = 108f;
-            int maxPlanetsToDraw = Mathf.Min(galaxy.planets.Count, 6);
+            int maxPlanetsToDraw = Mathf.Min(galaxy.planets.Count, MaxPlanetsToDraw);
+            float planetsSectionHeight = PlanetsSectionPadding * 2f;
+            if (maxPlanetsToDraw > 0)
+                planetsSectionHeight += maxPlanetsToDraw * PlanetRowHeight + (maxPlanetsToDraw - 1) * PlanetRowSpacing;
+
+            Rect planetsSectionRect = new Rect(inner.x, y, inner.width, planetsSectionHeight);
+            Widgets.DrawBoxSolid(planetsSectionRect, new Color(1f, 1f, 1f, 0.06f));
+
+            float rowY = planetsSectionRect.y + PlanetsSectionPadding;
             for (int p = 0; p < maxPlanetsToDraw; p++)
             {
                 PlanetDefinition_IO planet = galaxy.planets[p];
-                Rect row = new Rect(inner.x, y, inner.width, rowHeight);
+                Rect row = new Rect(
+                    planetsSectionRect.x + 8f,
+                    rowY,
+                    planetsSectionRect.width - 16f,
+                    PlanetRowHeight);
+
                 DrawPlanetRow(row, planet, galaxy, index, p);
-                y += rowHeight + 8f;
+                rowY += PlanetRowHeight + PlanetRowSpacing;
             }
         }
 
@@ -153,18 +194,19 @@ namespace InterstellarOdyssey
 
         private void DrawPlanetRow(Rect rect, PlanetDefinition_IO planet, GalaxyDefinition galaxy, int galaxyIndex, int planetIndex)
         {
-            Widgets.DrawBoxSolid(rect, new Color(1f, 1f, 1f, 0.04f));
-            Rect inner = rect.ContractedBy(8f);
+            Widgets.DrawBoxSolid(rect, new Color(1f, 1f, 1f, 0.05f));
+            Widgets.DrawHighlightIfMouseover(rect);
+            Rect inner = rect.ContractedBy(10f);
 
             string key = "planet_label_" + galaxyIndex + "_" + planetIndex;
             string labelBuffer = GetTextBuffer(key, planet.label ?? ("Планета " + (planetIndex + 1)));
             Widgets.Label(new Rect(inner.x, inner.y, 52f, 24f), "Имя:");
-            labelBuffer = Widgets.TextField(new Rect(inner.x + 46f, inner.y, 200f, 24f), labelBuffer);
+            labelBuffer = Widgets.TextField(new Rect(inner.x + 46f, inner.y, 230f, 24f), labelBuffer);
             textBuffers[key] = labelBuffer;
             planet.label = labelBuffer;
 
             bool start = planet.startPlanet;
-            Widgets.CheckboxLabeled(new Rect(inner.x + 260f, inner.y, 120f, 24f), "Стартовая", ref start);
+            Widgets.CheckboxLabeled(new Rect(inner.x + 320f, inner.y, 140f, 24f), "Стартовая", ref start);
             if (start != planet.startPlanet && start)
             {
                 foreach (GalaxyDefinition g in config.galaxies)
@@ -174,23 +216,30 @@ namespace InterstellarOdyssey
             planet.startPlanet = start;
 
             bool defaults = planet.useVanillaDefaults;
-            Widgets.CheckboxLabeled(new Rect(inner.x + 400f, inner.y, 190f, 24f), "Ванильные дефолты", ref defaults);
+            Widgets.CheckboxLabeled(new Rect(inner.x + 500f, inner.y, 210f, 24f), "Ванильные дефолты", ref defaults);
             planet.useVanillaDefaults = defaults;
 
-            float y = inner.y + 32f;
-            DrawSlider(new Rect(inner.x, y, 320f, 22f), "Температура", ref planet.overallTemperature, 0f, 2f);
-            DrawSlider(new Rect(inner.x + 330f, y, 320f, 22f), "Осадки", ref planet.overallRainfall, 0f, 2f);
-            DrawSlider(new Rect(inner.x + 660f, y, 320f, 22f), "Население", ref planet.overallPopulation, 0f, 2f);
-            y += 32f;
-            DrawSlider(new Rect(inner.x, y, 320f, 22f), "Покрытие", ref planet.coverage, 0.05f, 1f);
-            DrawSlider(new Rect(inner.x + 330f, y, 320f, 22f), "Загрязнение", ref planet.pollution, 0f, 1f);
-            DrawSeedField(new Rect(inner.x + 660f, y, 180f, 24f), planet, galaxyIndex, planetIndex);
+            float y = inner.y + 38f;
+            float leftWidth = (inner.width - 32f) / 2f;
+            float rightX = inner.x + leftWidth + 32f;
+
+            DrawSlider(new Rect(inner.x, y, leftWidth, 24f), "Температура", ref planet.overallTemperature, 0f, 2f);
+            DrawSlider(new Rect(rightX, y, leftWidth, 24f), "Осадки", ref planet.overallRainfall, 0f, 2f);
+            y += 38f;
+
+            DrawSlider(new Rect(inner.x, y, leftWidth, 24f), "Население", ref planet.overallPopulation, 0f, 2f);
+            DrawSlider(new Rect(rightX, y, leftWidth, 24f), "Покрытие", ref planet.coverage, 0.05f, 1f);
+            y += 38f;
+
+            DrawSlider(new Rect(inner.x, y, leftWidth, 24f), "Загрязнение", ref planet.pollution, 0f, 1f);
+            DrawSeedField(new Rect(rightX, y, 180f, 24f), planet, galaxyIndex, planetIndex);
         }
 
         private void DrawSlider(Rect rect, string label, ref float value, float min, float max)
         {
-            Widgets.Label(new Rect(rect.x, rect.y, 112f, rect.height), label + ": " + value.ToString("0.00"));
-            value = Widgets.HorizontalSlider(new Rect(rect.x + 114f, rect.y, rect.width - 116f, rect.height), value, min, max, true);
+            const float labelWidth = 150f;
+            Widgets.Label(new Rect(rect.x, rect.y, labelWidth, rect.height), label + ": " + value.ToString("0.00"));
+            value = Widgets.HorizontalSlider(new Rect(rect.x + labelWidth + 4f, rect.y, rect.width - labelWidth - 8f, rect.height), value, min, max, true);
         }
 
         private void DrawSeedField(Rect rect, PlanetDefinition_IO planet, int galaxyIndex, int planetIndex)

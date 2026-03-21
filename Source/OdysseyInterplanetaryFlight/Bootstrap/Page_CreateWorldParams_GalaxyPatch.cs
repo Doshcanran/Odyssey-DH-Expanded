@@ -11,66 +11,80 @@ namespace InterstellarOdyssey
     {
         private static Vector2 summaryScrollPos;
 
+        [HarmonyPrefix]
+        public static bool Prefix(Rect rect)
+        {
+            EnsureConfig();
+
+            if (!InterstellarOdysseyMod.WorldGenGalaxyTabSelected)
+                return true;
+
+            DrawGalaxyOverlay(rect);
+            return false;
+        }
+
         [HarmonyPostfix]
         public static void Postfix(Rect rect)
+        {
+            EnsureConfig();
+
+            if (InterstellarOdysseyMod.WorldGenGalaxyTabSelected)
+                return;
+
+            Rect safeRect = rect.ContractedBy(6f);
+
+            const float buttonWidth = 220f;
+            const float buttonHeight = 36f;
+            const float footerReserved = 86f;
+            const float sideMargin = 10f;
+            const float buttonBottomGap = 6f;
+
+            Rect toggleButtonRect = new Rect(
+                safeRect.x + sideMargin,
+                safeRect.yMax - footerReserved - buttonHeight - buttonBottomGap,
+                buttonWidth,
+                buttonHeight);
+
+            if (Widgets.ButtonText(toggleButtonRect, "Галактики"))
+                InterstellarOdysseyMod.WorldGenGalaxyTabSelected = true;
+        }
+
+        private static void EnsureConfig()
         {
             if (InterstellarOdysseyMod.PendingGalaxyConfig == null)
                 InterstellarOdysseyMod.PendingGalaxyConfig = GalaxyConfigUtility.CreateDefaultConfiguration();
 
             GalaxyConfigUtility.EnsureConsistency(InterstellarOdysseyMod.PendingGalaxyConfig);
+        }
 
+        private static void DrawGalaxyOverlay(Rect rect)
+        {
             Rect safeRect = rect.ContractedBy(6f);
 
-            float tabsWidth = 500f;
-            float tabsHeight = 32f;
-            float topOffset = Mathf.Clamp(safeRect.height * 0.06f, 30f, 56f);
-            float bottomReserved = 86f;
-            float tabsToWindowGap = 10f;
+            Widgets.DrawBoxSolid(safeRect, new Color(0.08f, 0.08f, 0.08f, 1f));
+            Widgets.DrawMenuSection(safeRect);
 
-            // Вкладки рисуются отдельно НАД окном, а не врезаются в него.
-            Rect tabsRect = new Rect(
-                safeRect.x + 56f,
-                safeRect.y + topOffset,
-                tabsWidth,
-                tabsHeight);
+            Rect inner = safeRect.ContractedBy(12f);
 
-            Rect overlay = new Rect(
-                safeRect.x + 10f,
-                tabsRect.yMax + tabsToWindowGap,
-                safeRect.width - 20f,
-                safeRect.height - (tabsRect.yMax - safeRect.y) - tabsToWindowGap - bottomReserved);
-
-            List<TabRecord> tabs = new List<TabRecord>
-            {
-                new TabRecord("Мир", () => InterstellarOdysseyMod.WorldGenGalaxyTabSelected = false, !InterstellarOdysseyMod.WorldGenGalaxyTabSelected),
-                new TabRecord("Галактики", () => InterstellarOdysseyMod.WorldGenGalaxyTabSelected = true, InterstellarOdysseyMod.WorldGenGalaxyTabSelected)
-            };
-            TabDrawer.DrawTabs(tabsRect, tabs);
-
-            if (!InterstellarOdysseyMod.WorldGenGalaxyTabSelected)
-                return;
-
-            Widgets.DrawBoxSolid(overlay, new Color(0.10f, 0.10f, 0.10f, 0.985f));
-            Widgets.DrawMenuSection(overlay);
-
-            Rect inner = overlay.ContractedBy(12f);
-
-            float headerHeight = 36f;
+            const float headerHeight = 40f;
             Rect headerRect = new Rect(inner.x, inner.y, inner.width, headerHeight);
-            Rect buttonRect = new Rect(headerRect.xMax - 260f, headerRect.y, 260f, 34f);
-            Rect titleRect = new Rect(headerRect.x, headerRect.y + 3f, headerRect.width - 276f, 28f);
+            Rect titleRect = new Rect(headerRect.x, headerRect.y + 5f, Mathf.Max(200f, headerRect.width - 520f), 28f);
+            Rect editorButtonRect = new Rect(headerRect.xMax - 470f, headerRect.y, 250f, 34f);
+            Rect returnButtonRect = new Rect(headerRect.xMax - 210f, headerRect.y, 210f, 34f);
 
             Text.Font = GameFont.Small;
             Text.Anchor = TextAnchor.UpperLeft;
             Widgets.Label(titleRect, "Настройка галактик, систем и архивов планет перед стартом.");
 
-            if (Widgets.ButtonText(buttonRect, "Открыть редактор галактик"))
-            {
+            if (Widgets.ButtonText(editorButtonRect, "Открыть редактор галактик"))
                 Find.WindowStack.Add(new Dialog_GalaxyWorldConfig(InterstellarOdysseyMod.PendingGalaxyConfig));
-            }
 
-            float footerHeight = 28f;
-            float contentTopGap = 12f;
+            if (Widgets.ButtonText(returnButtonRect, "Вернуться к миру"))
+                InterstellarOdysseyMod.WorldGenGalaxyTabSelected = false;
+
+            const float footerHeight = 28f;
+            const float contentTopGap = 12f;
+
             Rect contentRect = new Rect(
                 inner.x,
                 headerRect.yMax + contentTopGap,
@@ -80,9 +94,10 @@ namespace InterstellarOdyssey
             Rect footerRect = new Rect(inner.x, inner.yMax - footerHeight, inner.width, footerHeight);
 
             List<GalaxyDefinition> galaxies = InterstellarOdysseyMod.PendingGalaxyConfig.galaxies ?? new List<GalaxyDefinition>();
-            float rowHeight = 78f;
-            float rowGap = 8f;
-            float viewHeight = Mathf.Max(contentRect.height - 4f, galaxies.Count * (rowHeight + rowGap));
+            const float rowHeight = 78f;
+            const float rowGap = 8f;
+            float calculatedViewHeight = galaxies.Count * (rowHeight + rowGap);
+            float viewHeight = Mathf.Max(contentRect.height - 4f, calculatedViewHeight);
             Rect viewRect = new Rect(0f, 0f, contentRect.width - 18f, viewHeight);
 
             Widgets.BeginScrollView(contentRect, ref summaryScrollPos, viewRect);
@@ -116,7 +131,7 @@ namespace InterstellarOdyssey
             Widgets.EndScrollView();
 
             GUI.color = new Color(1f, 1f, 1f, 0.92f);
-            Widgets.Label(footerRect, "После создания мира конфигурация будет перенесена в WorldComponent и по ней будут сгенерированы узлы, архивы и вкладки галактик.");
+            Widgets.Label(footerRect, "Пока открыт экран галактик, ванильный интерфейс создания мира полностью заблокирован.");
             GUI.color = Color.white;
             Text.Anchor = TextAnchor.UpperLeft;
             Text.Font = GameFont.Small;
