@@ -7,6 +7,24 @@ namespace InterstellarOdyssey
 {
     public static class GalaxyConfigUtility
     {
+        private static readonly string[] NamePrefixes =
+        {
+            "Ar", "Bel", "Cer", "Dra", "Ely", "Fen", "Hel", "Ira", "Jor", "Kal",
+            "Lum", "Mor", "Nex", "Or", "Pra", "Qua", "Ryn", "Sol", "Tal", "Vel",
+            "Xan", "Yor", "Zer"
+        };
+
+        private static readonly string[] NameMiddles =
+        {
+            "a", "e", "i", "o", "u", "ae", "ia", "io", "ar", "or", "en", "un"
+        };
+
+        private static readonly string[] NameSuffixes =
+        {
+            "lon", "ria", "tis", "nus", "mia", "dor", "vek", "ion", "ara", "eth",
+            " Prime", " Secundus", " III", " IV", " V"
+        };
+
         public static GalaxyWorldConfiguration CreateDefaultConfiguration()
         {
             GalaxyWorldConfiguration config = new GalaxyWorldConfiguration();
@@ -22,6 +40,7 @@ namespace InterstellarOdyssey
         public static GalaxyDefinition CreateDefaultGalaxy(int index, bool withStartPlanet)
         {
             string worldName = Find.World?.info?.name ?? "RimWorld";
+            Random random = CreateRandom(index);
 
             GalaxyDefinition galaxy = new GalaxyDefinition
             {
@@ -39,31 +58,13 @@ namespace InterstellarOdyssey
             galaxy.planets.Add(new PlanetDefinition_IO
             {
                 id = withStartPlanet ? "homeworld" : galaxy.id + "_planet_0",
-                label = worldName,
+                label = withStartPlanet ? worldName : GeneratePlanetName(random),
                 startPlanet = withStartPlanet,
                 useVanillaDefaults = true,
-                seedOffset = index * 100
+                seedOffset = GenerateSeedOffset(random, index, 0)
             });
-            galaxy.planets.Add(new PlanetDefinition_IO
-            {
-                id = galaxy.id + "_planet_1",
-                label = "Ares",
-                overallTemperature = 1.25f,
-                overallRainfall = 0.65f,
-                overallPopulation = 0.55f,
-                coverage = 0.22f,
-                seedOffset = index * 100 + 1
-            });
-            galaxy.planets.Add(new PlanetDefinition_IO
-            {
-                id = galaxy.id + "_planet_2",
-                label = "Nivalis",
-                overallTemperature = 0.55f,
-                overallRainfall = 1.1f,
-                overallPopulation = 0.35f,
-                coverage = 0.28f,
-                seedOffset = index * 100 + 2
-            });
+            galaxy.planets.Add(CreateRandomPlanet(galaxy.id, 1, random));
+            galaxy.planets.Add(CreateRandomPlanet(galaxy.id, 2, random));
 
             return galaxy;
         }
@@ -104,15 +105,22 @@ namespace InterstellarOdyssey
                 if (galaxy.planets == null)
                     galaxy.planets = new List<PlanetDefinition_IO>();
 
+                Random random = CreateRandom(i + galaxy.planets.Count);
+
                 while (galaxy.planets.Count < galaxy.planetCount)
                 {
                     int pIndex = galaxy.planets.Count;
-                    galaxy.planets.Add(new PlanetDefinition_IO
-                    {
-                        id = galaxy.id + "_planet_" + pIndex,
-                        label = "Планета " + (pIndex + 1),
-                        seedOffset = i * 100 + pIndex
-                    });
+                    bool isStartPlanet = !startPlanetAssigned && i == 0 && pIndex == 0;
+                    galaxy.planets.Add(isStartPlanet
+                        ? new PlanetDefinition_IO
+                        {
+                            id = "homeworld",
+                            label = Find.World?.info?.name ?? "RimWorld",
+                            startPlanet = true,
+                            useVanillaDefaults = true,
+                            seedOffset = GenerateSeedOffset(random, i, pIndex)
+                        }
+                        : CreateRandomPlanet(galaxy.id, pIndex, random));
                 }
 
                 if (galaxy.planets.Count > galaxy.planetCount)
@@ -125,8 +133,14 @@ namespace InterstellarOdyssey
 
                     if (string.IsNullOrEmpty(planet.id))
                         planet.id = galaxy.id + "_planet_" + p;
+
                     if (string.IsNullOrEmpty(planet.label))
-                        planet.label = p == 0 && i == 0 ? (Find.World?.info?.name ?? "RimWorld") : "Планета " + (p + 1);
+                        planet.label = p == 0 && i == 0
+                            ? (Find.World?.info?.name ?? "RimWorld")
+                            : GeneratePlanetName(random);
+
+                    if (planet.seedOffset == 0 && !(planet.startPlanet && p == 0 && i == 0))
+                        planet.seedOffset = GenerateSeedOffset(random, i, p);
 
                     if (planet.startPlanet)
                     {
@@ -138,6 +152,8 @@ namespace InterstellarOdyssey
                         {
                             startPlanetAssigned = true;
                             planet.id = "homeworld";
+                            if (string.IsNullOrEmpty(planet.label))
+                                planet.label = Find.World?.info?.name ?? "RimWorld";
                         }
                     }
                 }
@@ -172,6 +188,65 @@ namespace InterstellarOdyssey
         public static GalaxyDefinition GetGalaxy(GalaxyWorldConfiguration config, string galaxyId)
         {
             return config?.galaxies?.FirstOrDefault(g => g != null && g.id == galaxyId);
+        }
+
+        private static PlanetDefinition_IO CreateRandomPlanet(string galaxyId, int planetIndex, Random random)
+        {
+            PlanetDefinition_IO planet = new PlanetDefinition_IO
+            {
+                id = galaxyId + "_planet_" + planetIndex,
+                label = GeneratePlanetName(random),
+                overallTemperature = 0.55f + (float)random.NextDouble() * 0.95f,
+                overallRainfall = 0.35f + (float)random.NextDouble() * 1.15f,
+                overallPopulation = 0.15f + (float)random.NextDouble() * 0.95f,
+                coverage = 0.18f + (float)random.NextDouble() * 0.18f,
+                pollution = (float)random.NextDouble() * 0.18f,
+                seedOffset = GenerateSeedOffset(random, ExtractTrailingIndex(galaxyId), planetIndex)
+            };
+
+            if (random.NextDouble() < 0.33d)
+                planet.useVanillaDefaults = false;
+
+            return planet;
+        }
+
+        private static int GenerateSeedOffset(Random random, int galaxyIndex, int planetIndex)
+        {
+            return galaxyIndex * 100000 + planetIndex * 1000 + random.Next(1, 999);
+        }
+
+        private static string GeneratePlanetName(Random random)
+        {
+            string prefix = NamePrefixes[random.Next(NamePrefixes.Length)];
+            string middle = NameMiddles[random.Next(NameMiddles.Length)];
+            string suffix = NameSuffixes[random.Next(NameSuffixes.Length)];
+
+            string result = prefix + middle + suffix;
+            return result.Replace("  ", " ").Trim();
+        }
+
+        private static Random CreateRandom(int salt)
+        {
+            int tickPart = unchecked((int)DateTime.UtcNow.Ticks);
+            int guidPart = Guid.NewGuid().GetHashCode();
+            int seed = tickPart ^ guidPart ^ (salt * 397);
+            return new Random(seed);
+        }
+
+        private static int ExtractTrailingIndex(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+                return 0;
+
+            int underscore = value.LastIndexOf('_');
+            if (underscore >= 0 && underscore < value.Length - 1)
+            {
+                int parsed;
+                if (int.TryParse(value.Substring(underscore + 1), out parsed))
+                    return parsed;
+            }
+
+            return 0;
         }
     }
 }

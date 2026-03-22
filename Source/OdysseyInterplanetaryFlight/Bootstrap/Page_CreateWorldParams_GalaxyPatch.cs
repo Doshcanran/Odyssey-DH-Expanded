@@ -69,12 +69,16 @@ namespace InterstellarOdyssey
             const float headerHeight = 40f;
             Rect headerRect = new Rect(inner.x, inner.y, inner.width, headerHeight);
             Rect titleRect = new Rect(headerRect.x, headerRect.y + 5f, Mathf.Max(200f, headerRect.width - 520f), 28f);
+            Rect factionsButtonRect = new Rect(headerRect.xMax - 730f, headerRect.y, 250f, 34f);
             Rect editorButtonRect = new Rect(headerRect.xMax - 470f, headerRect.y, 250f, 34f);
             Rect returnButtonRect = new Rect(headerRect.xMax - 210f, headerRect.y, 210f, 34f);
 
             Text.Font = GameFont.Small;
             Text.Anchor = TextAnchor.UpperLeft;
             Widgets.Label(titleRect, "Настройка галактик, систем и архивов планет перед стартом.");
+
+            if (Widgets.ButtonText(factionsButtonRect, "Фракции мира (ваниль)"))
+                TryOpenVanillaFactionSettings();
 
             if (Widgets.ButtonText(editorButtonRect, "Открыть редактор галактик"))
                 Find.WindowStack.Add(new Dialog_GalaxyWorldConfig(InterstellarOdysseyMod.PendingGalaxyConfig));
@@ -135,6 +139,19 @@ namespace InterstellarOdyssey
             GUI.color = Color.white;
             Text.Anchor = TextAnchor.UpperLeft;
             Text.Font = GameFont.Small;
+        }
+
+        private static void TryOpenVanillaFactionSettings()
+        {
+            try
+            {
+                Find.WindowStack.Add(new Dialog_AdvancedGameConfig());
+            }
+            catch (System.Exception ex)
+            {
+                Log.Error("[InterstellarOdyssey] Не удалось открыть ванильные настройки фракций: " + ex);
+                Messages.Message("Не удалось открыть ванильное окно настройки фракций.", MessageTypeDefOf.RejectInput, false);
+            }
         }
     }
 }

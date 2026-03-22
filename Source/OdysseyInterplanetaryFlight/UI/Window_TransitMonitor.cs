@@ -161,31 +161,11 @@ namespace InterstellarOdyssey
         private static void DrawNode(OrbitalNode node, Vector2 center, float scale, WorldComponent_Interstellar data)
         {
             Vector2 drawPos = center + OrbitalMath.Position(node) * scale;
-            float size = 14f;
-            Color color = Color.white;
+            float size = 24f;
+            Rect iconRect = new Rect(drawPos.x - size / 2f, drawPos.y - size / 2f, size, size);
 
-            switch (node.type)
-            {
-                case OrbitalNodeType.Planet:
-                    color = new Color(0.35f, 0.75f, 1f);
-                    size = 18f;
-                    break;
-                case OrbitalNodeType.Station:
-                    color = new Color(0.75f, 0.95f, 0.75f);
-                    size = 14f;
-                    break;
-                case OrbitalNodeType.AsteroidBelt:
-                    color = new Color(0.65f, 0.65f, 0.65f);
-                    size = 12f;
-                    break;
-                case OrbitalNodeType.Asteroid:
-                    color = new Color(0.75f, 0.72f, 0.62f);
-                    size = 10f;
-                    break;
-            }
-
-            Widgets.DrawBoxSolid(new Rect(drawPos.x - size / 2f, drawPos.y - size / 2f, size, size), color);
-            Widgets.Label(new Rect(drawPos.x + size * 0.6f, drawPos.y - 12f, 120f, 24f), data.ResolveNodeLabel(node));
+            OrbitalIconUtility.DrawNodeIcon(node.type, iconRect);
+            Widgets.Label(new Rect(drawPos.x + size * 0.7f, drawPos.y - 12f, 140f, 24f), data.ResolveNodeLabel(node));
         }
 
         private static void DrawTravel(ShipTransitRecord travel, Vector2 center, float scale, WorldComponent_Interstellar data, ShipTransitRecord highlight)
@@ -197,11 +177,13 @@ namespace InterstellarOdyssey
 
             Vector2 a = center + OrbitalMath.Position(src) * scale;
             Vector2 b = center + OrbitalMath.Position(dst) * scale;
-            Color lineColor = highlight == travel ? Color.yellow : (travel.intergalacticTravel ? new Color(1f, 0.6f, 0.2f) : Color.cyan);
-            Widgets.DrawLine(a, b, lineColor, highlight == travel ? 3f : 2f);
+            bool isHighlighted = highlight == travel;
+            Color lineColor = isHighlighted ? Color.yellow : (travel.intergalacticTravel ? new Color(1f, 0.6f, 0.2f) : Color.cyan);
+            Widgets.DrawLine(a, b, lineColor, isHighlighted ? 3f : 2f);
 
             Vector2 progressPos = Vector2.Lerp(a, b, travel.Progress);
-            Widgets.DrawBoxSolid(new Rect(progressPos.x - 6f, progressPos.y - 6f, 12f, 12f), lineColor);
+            Rect shipRect = new Rect(progressPos.x - 10f, progressPos.y - 10f, 20f, 20f);
+            OrbitalIconUtility.DrawShipIcon(shipRect, lineColor, isHighlighted);
         }
     }
 }

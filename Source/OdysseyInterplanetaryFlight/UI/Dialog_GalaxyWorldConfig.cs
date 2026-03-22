@@ -13,7 +13,7 @@ namespace InterstellarOdyssey
         private readonly Dictionary<string, string> textBuffers = new Dictionary<string, string>();
 
         private const float GalaxyBlockPadding = 8f;
-        private const float PlanetRowHeight = 150f;
+        private const float PlanetRowHeight = 196f;
         private const float PlanetRowSpacing = 8f;
         private const float PlanetsSectionPadding = 10f;
         private const int MaxPlanetsToDraw = 6;
@@ -58,6 +58,10 @@ namespace InterstellarOdyssey
             }
 
             Widgets.EndScrollView();
+
+            Rect actionsRect = new Rect(inRect.x, inRect.yMax - 70f, inRect.width, 30f);
+            if (Widgets.ButtonText(new Rect(actionsRect.x, actionsRect.y, 250f, 30f), "Фракции мира (ваниль)"))
+                OpenVanillaFactionSettings();
 
             Rect bottomRect = new Rect(inRect.x, inRect.yMax - 34f, inRect.width, 30f);
             if (Widgets.ButtonText(new Rect(bottomRect.xMax - 220f, bottomRect.y, 220f, 30f), "Сохранить настройки"))
@@ -228,11 +232,15 @@ namespace InterstellarOdyssey
             y += 38f;
 
             DrawSlider(new Rect(inner.x, y, leftWidth, 24f), "Население", ref planet.overallPopulation, 0f, 2f);
-            DrawSlider(new Rect(rightX, y, leftWidth, 24f), "Покрытие", ref planet.coverage, 0.05f, 1f);
-            y += 38f;
+            DrawWorldSizeSelector(new Rect(rightX, y, leftWidth, 24f), planet);
+            y += 64f;
 
             DrawSlider(new Rect(inner.x, y, leftWidth, 24f), "Загрязнение", ref planet.pollution, 0f, 1f);
             DrawSeedField(new Rect(rightX, y, 180f, 24f), planet, galaxyIndex, planetIndex);
+            y += 38f;
+
+            if (Widgets.ButtonText(new Rect(inner.x, y, 250f, 28f), "Открыть список фракций (ваниль)"))
+                OpenVanillaFactionSettings();
         }
 
         private void DrawSlider(Rect rect, string label, ref float value, float min, float max)
@@ -251,6 +259,47 @@ namespace InterstellarOdyssey
             intBuffers[key] = buffer;
             if (int.TryParse(buffer, out int seedOffset))
                 planet.seedOffset = seedOffset;
+        }
+
+        private void DrawWorldSizeSelector(Rect rect, PlanetDefinition_IO planet)
+        {
+            Widgets.Label(new Rect(rect.x, rect.y, 170f, rect.height), "Размер мира: " + DescribeCoverage(planet.coverage));
+
+            float buttonY = rect.y + rect.height + 2f;
+            Rect smallRect = new Rect(rect.x, buttonY, 56f, 24f);
+            Rect mediumRect = new Rect(rect.x + 60f, buttonY, 56f, 24f);
+            Rect largeRect = new Rect(rect.x + 120f, buttonY, 56f, 24f);
+            Rect hugeRect = new Rect(rect.x + 180f, buttonY, 56f, 24f);
+
+            if (Widgets.ButtonText(smallRect, Mathf.Abs(planet.coverage - 0.30f) < 0.01f ? "●30%" : "○30%"))
+                planet.coverage = 0.30f;
+            if (Widgets.ButtonText(mediumRect, Mathf.Abs(planet.coverage - 0.50f) < 0.01f ? "●50%" : "○50%"))
+                planet.coverage = 0.50f;
+            if (Widgets.ButtonText(largeRect, Mathf.Abs(planet.coverage - 0.75f) < 0.01f ? "●75%" : "○75%"))
+                planet.coverage = 0.75f;
+            if (Widgets.ButtonText(hugeRect, Mathf.Abs(planet.coverage - 1.00f) < 0.01f ? "●100%" : "○100%"))
+                planet.coverage = 1.00f;
+        }
+
+        private string DescribeCoverage(float coverage)
+        {
+            if (coverage <= 0.31f) return "малый";
+            if (coverage <= 0.55f) return "средний";
+            if (coverage <= 0.80f) return "большой";
+            return "максимальный";
+        }
+
+        private void OpenVanillaFactionSettings()
+        {
+            try
+            {
+                Find.WindowStack.Add(new Dialog_AdvancedGameConfig());
+            }
+            catch (System.Exception ex)
+            {
+                Log.Error("[InterstellarOdyssey] Не удалось открыть ванильные настройки фракций: " + ex);
+                Messages.Message("Не удалось открыть ванильное окно настройки фракций.", MessageTypeDefOf.RejectInput, false);
+            }
         }
 
         private string GetBuffer(string key, string fallback)

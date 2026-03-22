@@ -119,32 +119,11 @@ namespace InterstellarOdyssey
             Vector2 pos = OrbitalMath.Position(node) * scale;
             Vector2 drawPos = center + pos;
 
-            float size = 14f;
-            Color color = Color.white;
+            float size = 24f;
+            Rect iconRect = new Rect(drawPos.x - size / 2f, drawPos.y - size / 2f, size, size);
+            OrbitalIconUtility.DrawNodeIcon(node.type, iconRect);
 
-            switch (node.type)
-            {
-                case OrbitalNodeType.Planet:
-                    color = new Color(0.35f, 0.75f, 1f);
-                    size = 18f;
-                    break;
-                case OrbitalNodeType.Station:
-                    color = new Color(0.7f, 1f, 0.7f);
-                    size = 14f;
-                    break;
-                case OrbitalNodeType.AsteroidBelt:
-                    color = new Color(0.7f, 0.7f, 0.7f);
-                    size = 12f;
-                    break;
-                case OrbitalNodeType.Asteroid:
-                    color = new Color(0.7f, 0.65f, 0.55f);
-                    size = 10f;
-                    break;
-            }
-
-            Rect nodeRect = new Rect(drawPos.x - size / 2f, drawPos.y - size / 2f, size, size);
-            Widgets.DrawBoxSolid(nodeRect, color);
-            Widgets.Label(new Rect(nodeRect.xMax + 4f, nodeRect.y - 6f, 150f, 24f), Data.ResolveNodeLabel(node));
+            Widgets.Label(new Rect(iconRect.xMax + 6f, iconRect.y - 4f, 170f, 24f), Data.ResolveNodeLabel(node));
         }
 
         private void DrawValidationChecklist(Rect rect)

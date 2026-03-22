@@ -32,24 +32,10 @@ namespace InterstellarOdyssey
             if (snapshot == null || map == null)
                 return false;
 
-            switch (mode)
-            {
-                case ShipLandingMode.StationDocking:
-                    center = map.Center;
-                    return true;
-                case ShipLandingMode.Emergency:
-                    center = CellFinderLoose.RandomCellWith(c => c.InBounds(map) && c.Standable(map), map, 5000);
-                    break;
-                case ShipLandingMode.OrbitalDrop:
-                    center = CellFinderLoose.RandomCellWith(c => c.InBounds(map) && c.Standable(map), map, 3500);
-                    break;
-                case ShipLandingMode.UnpreparedSurface:
-                    center = CellFinderLoose.RandomCellWith(c => c.InBounds(map) && c.Walkable(map), map, 6000);
-                    break;
-                default:
-                    center = CellFinderLoose.RandomCellWith(c => c.InBounds(map) && c.Standable(map) && !c.Fogged(map), map, 2000);
-                    break;
-            }
+            center = CellFinderLoose.RandomCellWith(
+                c => c.InBounds(map) && c.Standable(map) && !c.Fogged(map),
+                map,
+                2000);
 
             if (!center.IsValid)
                 center = map.Center;
