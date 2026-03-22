@@ -78,6 +78,67 @@ namespace InterstellarOdyssey
 
         public class ShipSnapshot : IExposable
         {
+            /// <summary>
+            /// Переназначает фракцию всех объектов снапшота на текущую фракцию игрока.
+            /// Вызывается после WorldGenerator.GenerateWorld, так как GenerateWorld
+            /// создаёт НОВЫЙ объект Faction для игрока — старые ссылки становятся невалидными.
+            /// </summary>
+            public void ReassignToPlayerFaction()
+            {
+                Faction newPlayer = null;
+                try { newPlayer = Find.FactionManager?.OfPlayer; } catch { }
+                if (newPlayer == null)
+                {
+                    try
+                    {
+                        newPlayer = Find.FactionManager?.AllFactions
+                            ?.FirstOrDefault(f => f != null && f.IsPlayer);
+                    }
+                    catch { }
+                }
+                if (newPlayer == null)
+                {
+                    Log.Warning("[IO:Snapshot] ReassignToPlayerFaction: не удалось найти фракцию игрока.");
+                    return;
+                }
+
+                // Здания — все объекты в снапшоте принадлежали игроку, назначаем напрямую
+                if (buildings != null)
+                    foreach (ShipThingSnapshot s in buildings)
+                    {
+                        if (s?.thing == null) continue;
+                        // SetFactionDirect — без побочных эффектов, работает на деспавненных
+                        s.thing.SetFactionDirect(newPlayer);
+                    }
+
+                // Предметы
+                if (items != null)
+                    foreach (ShipThingSnapshot s in items)
+                    {
+                        if (s?.thing == null) continue;
+                        // Предметы могут не иметь faction — устанавливаем только если поддерживают
+                        try { s.thing.SetFactionDirect(newPlayer); } catch { }
+                    }
+
+                // Пешки — SetFaction с полным обновлением внутренних связей
+                if (pawns != null)
+                    foreach (ShipPawnSnapshot s in pawns)
+                    {
+                        if (s?.pawn == null || s.pawn.Dead) continue;
+                        try { s.pawn.SetFaction(newPlayer); }
+                        catch (Exception ex)
+                        {
+                            Log.Warning("[IO:Snapshot] SetFaction пешки "
+                                + s.pawn.LabelShortCap + ": " + ex.Message);
+                        }
+                    }
+
+                Log.Message("[IO:Snapshot] ReassignToPlayerFaction: переназначено "
+                    + (buildings?.Count ?? 0) + " зданий, "
+                    + (items?.Count ?? 0) + " предметов, "
+                    + (pawns?.Count ?? 0) + " пешек.");
+            }
+
             public int shipThingId;
             public string shipDefName;
             public string currentNodeId;
