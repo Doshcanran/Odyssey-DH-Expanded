@@ -1,69 +1,71 @@
 # 🚀 Interplanetary Travel Mod (RimWorld 1.6)
 
-Мод добавляет в **RimWorld 1.6** систему межпланетных перелётов, позволяя колониям выходить за пределы одной планеты и взаимодействовать с другими мирами.
+An interplanetary travel system for RimWorld 1.6 that allows colonies to leave their home planet and interact with multiple worlds.
 
 ---
 
-## 📌 Описание
+## 📌 Overview
 
-Этот мод расширяет эндгейм-контент RimWorld, добавляя:
+This mod expands RimWorld’s endgame by introducing mechanics for space travel and multi-world interaction.
 
-* 🌍 Возможность покидать планету
-* 🚀 Систему межпланетных кораблей
-* 🪐 Генерацию новых миров
-* 📦 Перевозку ресурсов и колонистов между планетами
-* ⚙️ Новые технологии и постройки
+### Features
 
----
-
-## ✨ Основные возможности
-
-### 🚀 Межпланетные перелёты
-
-### 🪐 Новые миры
+* 🌍 Leave your home planet
+* 🚀 Interplanetary ship system
+* 🪐 Procedural generation of new worlds
+* 📦 Transport resources and colonists between planets
+* ⚙️ New technologies and buildings
 
 ---
 
-## 🧬 Зависимости 
-* ✔ DLC Odyssey 
-* ✔ Harmony
+## ✨ Planned / In Development
+
+* 🚀 Advanced interplanetary travel mechanics
+* 🪐 Diverse world types and conditions
 
 ---
 
-⚠️ Возможны конфликты с модами, изменяющими:
+## 🧬 Dependencies
 
-* генерацию мира
-* систему караванов
-* транспорт
+* DLC: Odyssey
+* Harmony
 
 ---
 
-## 📦 Установка
+## ⚠️ Compatibility
 
-1. Скачайте мод
-2. Поместите в папку:
+Potential conflicts may occur with mods that modify:
 
-   ```
+* world generation
+* caravan mechanics
+* transportation systems
+
+---
+
+## 📦 Installation
+
+```bash
+1. Download or clone this repository
+2. Move the mod folder into:
    RimWorld/Mods/
-   ```
-3. Активируйте в игре 
+3. Enable the mod in-game
+```
 
 ---
 
-## 🐞 Известные проблемы
+## 🐞 Known Issues
 
-* Некорректная работа UI
-* Ошибки в дебаг панели при взлете и посадке корабля
-
----
-
-## 💡 Идеи и предложения
-
-Если у вас есть идеи — создавайте Issue или пишите в обсуждениях.
+* UI inconsistencies
+* Debug errors during ship launch and landing
 
 ---
 
-## ❤️ Благодарности
+## 💡 Contributing
 
-* Себе любимому
+Suggestions and contributions are welcome.
+
+* Open an issue for ideas or bug reports
+* Use discussions for general feedback
+
+---
 
