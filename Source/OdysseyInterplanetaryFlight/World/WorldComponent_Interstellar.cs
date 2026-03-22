@@ -396,7 +396,9 @@ namespace InterstellarOdyssey
                 if (!switched)
                     return false;
 
-                record.snapshot?.ReassignToPlayerFaction();
+                // ReassignToPlayerFaction больше не нужна:
+                // SwitchToPlanet теперь НЕ вызывает GenerateWorld,
+                // поэтому FactionManager и faction-ссылки остаются нетронутыми.
             }
 
             currentPlanetNodeId = record.destinationId;
@@ -452,10 +454,8 @@ namespace InterstellarOdyssey
 
             ShipLandingUtility.SpawnTransitLoot(record, landingMap, center);
 
-            // Исправляем фракцию у всех заспавненных объектов на карте
-            // (после WorldGenerator.GenerateWorld старые faction-ссылки невалидны)
-            FixSpawnedFactions(landingMap);
-            NormalizeLandedPawns(landingMap);
+            // FixSpawnedFactions и NormalizeLandedPawns больше не нужны:
+            // мы не вызываем GenerateWorld, поэтому faction-ссылки остаются валидными.
 
             record.stage = InterstellarTransitStage.None;
             if (record.snapshot != null) record.snapshot.currentNodeId = record.destinationId;

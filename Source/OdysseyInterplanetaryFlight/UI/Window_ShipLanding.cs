@@ -206,10 +206,34 @@ namespace InterstellarOdyssey
         //  Списки карт
         // ─────────────────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Безопасная замена m.IsPlayerHome.
+        /// Map.IsPlayerHome вызывает Faction.OfPlayer, который бросает исключение
+        /// если FactionManager ещё не восстановлен после WorldGenerator.GenerateWorld.
+        /// Здесь проверяем через MapParent.Faction напрямую — без get_OfPlayer.
+        /// </summary>
+        private static bool IsPlayerHomeMapSafe(Map m)
+        {
+            if (m == null) return false;
+            try
+            {
+                // Проверяем фракцию MapParent напрямую, не через Faction.OfPlayer
+                Faction parentFaction = m.ParentFaction;
+                if (parentFaction != null)
+                    return parentFaction.IsPlayer;
+
+                // Fallback: ищем player faction без get_OfPlayer
+                Faction playerFaction = Find.FactionManager?.AllFactionsListForReading
+                    ?.FirstOrDefault(f => f != null && f.IsPlayer);
+                return playerFaction != null && m.ParentFaction == playerFaction;
+            }
+            catch { return false; }
+        }
+
         private List<Map> GetExistingPlayerMaps()
         {
             List<Map> result = Find.Maps
-                .Where(m => m != null && m.IsPlayerHome)
+                .Where(m => IsPlayerHomeMapSafe(m))
                 .ToList();
 
             // Исключаем карту вакуума
@@ -229,7 +253,7 @@ namespace InterstellarOdyssey
                 if (targetMap != null) maps.Add(targetMap);
             }
 
-            foreach (Map m in Find.Maps.Where(m => m != null && m.IsPlayerHome))
+            foreach (Map m in Find.Maps.Where(m => IsPlayerHomeMapSafe(m)))
                 if (!maps.Contains(m)) maps.Add(m);
 
             if (travel?.voidMapTile >= 0)

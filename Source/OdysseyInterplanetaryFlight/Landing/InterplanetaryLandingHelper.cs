@@ -85,6 +85,20 @@ namespace InterstellarOdyssey
                     return null;
                 }
 
+                // ── 3а. Перепривязываем Settlement к актуальной фракции игрока ─
+                // После PrepareNewPlanetWorld → GenerateWorld FactionManager обновился.
+                // Settlement мог получить ссылку на старый объект Faction — явно синхронизируем.
+                Faction currentPlayerFaction = null;
+                try { currentPlayerFaction = Find.FactionManager?.OfPlayer; } catch { }
+                currentPlayerFaction = currentPlayerFaction
+                    ?? Find.FactionManager?.AllFactionsListForReading?.FirstOrDefault(f => f != null && f.IsPlayer);
+
+                if (currentPlayerFaction != null && settlement.Faction != currentPlayerFaction)
+                {
+                    settlement.SetFaction(currentPlayerFaction);
+                    Log.Message("[IO:Landing] Settlement faction re-synced to: " + currentPlayerFaction.Name);
+                }
+
                 // ── 4. Помечаем узел — запоминаем тайл для повторных визитов ──
                 if (node != null)
                 {

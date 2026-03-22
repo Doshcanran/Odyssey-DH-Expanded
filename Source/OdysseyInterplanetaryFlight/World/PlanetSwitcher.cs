@@ -99,7 +99,11 @@ namespace InterstellarOdyssey
         }
 
         // ─────────────────────────────────────────────────────────────────────
-        //  Смена планеты — GenerateWorld + восстановление faction игрока
+        //  Смена планеты — GenerateWorld через reflection + восстановление Maps
+        //
+        //  Вызываем WorldGenerator.GenerateWorld чтобы планета реально менялась.
+        //  ДО вызова сохраняем Maps и FactionManager, ПОСЛЕ — восстанавливаем.
+        //  Это даёт настоящий новый мировой шар без уничтожения карт и фракций.
         // ─────────────────────────────────────────────────────────────────────
 
         public static bool SwitchToPlanet(
@@ -120,39 +124,52 @@ namespace InterstellarOdyssey
             {
                 string seed        = ResolvePlanetSeed(destPlanetDef, existingState);
                 float  coverage    = Find.World.info.planetCoverage;
-                float  rainfall    = destPlanetDef.useVanillaDefaults ? (float)Find.World.info.overallRainfall    : destPlanetDef.overallRainfall;
-                float  temperature = destPlanetDef.useVanillaDefaults ? (float)Find.World.info.overallTemperature : destPlanetDef.overallTemperature;
-                float  population  = destPlanetDef.useVanillaDefaults ? (float)Find.World.info.overallPopulation  : destPlanetDef.overallPopulation;
+                float  rainfall    = destPlanetDef.useVanillaDefaults
+                    ? (float)Find.World.info.overallRainfall    : destPlanetDef.overallRainfall;
+                float  temperature = destPlanetDef.useVanillaDefaults
+                    ? (float)Find.World.info.overallTemperature : destPlanetDef.overallTemperature;
+                float  population  = destPlanetDef.useVanillaDefaults
+                    ? (float)Find.World.info.overallPopulation  : destPlanetDef.overallPopulation;
 
-                // ── 1. Сохраняем фракцию игрока ДО GenerateWorld ─────────────
-                Faction oldPlayerFaction = Find.FactionManager?.OfPlayer;
-                if (oldPlayerFaction == null)
-                {
-                    Log.Warning("[IO:PlanetSwitcher] Нет фракции игрока перед GenerateWorld.");
-                }
+                // ── 1. Сохраняем всё что GenerateWorld уничтожит ─────────────
+                List<Map>      savedMaps       = Current.Game.Maps.ToList();
+                FactionManager savedFM         = Find.FactionManager;
+                List<Faction>  savedFactions   = GetAllFactionsList(savedFM)?.ToList();
+                Map            savedCurrentMap = Current.Game.CurrentMap;
 
-                // ── 2. Перегенерируем мир ─────────────────────────────────────
-                WorldGenerator.GenerateWorld(
-                    coverage,
-                    seed,
+                Log.Message("[IO:PlanetSwitcher] Сохранено карт: " + savedMaps.Count
+                    + " фракций: " + (savedFactions?.Count ?? 0));
+
+                // ── 2. Вызываем GenerateWorld через reflection ─────────────────
+                bool generated = TryCallGenerateWorld(coverage, seed,
                     FloatToOverallRainfall(rainfall),
                     FloatToOverallTemperature(temperature),
-                    FloatToOverallPopulation(population),
-                    LandmarkDensity.Normal);
+                    FloatToOverallPopulation(population));
 
-                try { Find.World.FinalizeInit(true); }
-                catch (Exception ex) { Log.Warning("[IO:PlanetSwitcher] FinalizeInit: " + ex.Message); }
+                if (!generated)
+                {
+                    // Fallback: только обновляем World.info и перерисовываем
+                    Log.Warning("[IO:PlanetSwitcher] GenerateWorld не вызван — обновляем только World.info.");
+                    Find.World.info.seedString         = seed;
+                    Find.World.info.overallRainfall    = FloatToOverallRainfall(rainfall);
+                    Find.World.info.overallTemperature = FloatToOverallTemperature(temperature);
+                    Find.World.info.overallPopulation  = FloatToOverallPopulation(population);
+                    try { Find.World.renderer.RegenerateAllLayersNow(); } catch { }
+                }
 
-                // ── 3. Восстанавливаем faction игрока ────────────────────────
-                // GenerateWorld создал новую Faction в FactionManager.
-                // Заменяем новую faction нашей старой через reflection —
-                // тогда все существующие ссылки в пешках/строениях остаются валидными.
-                if (oldPlayerFaction != null)
-                    RestorePlayerFaction(oldPlayerFaction);
+                // ── 3. Восстанавливаем Maps ───────────────────────────────────
+                RestoreMaps(savedMaps, savedCurrentMap);
+
+                // ── 4. Восстанавливаем FactionManager ────────────────────────
+                RestoreFactionManager(savedFM, savedFactions);
 
                 landingTile = FindLandingTile();
 
-                Log.Message("[IO:PlanetSwitcher] Планета сменена. seed=" + seed + " tile=" + landingTile);
+                Log.Message("[IO:PlanetSwitcher] Планета сменена. seed=" + seed
+                    + " tile=" + landingTile
+                    + " OfPlayer=" + (SafeOfPlayer()?.Name ?? "null")
+                    + " Maps=" + Current.Game.Maps.Count);
+
                 return true;
             }
             catch (Exception ex)
@@ -163,189 +180,156 @@ namespace InterstellarOdyssey
         }
 
         // ─────────────────────────────────────────────────────────────────────
-        //  Восстановление faction игрока через reflection
+        //  Вызов WorldGenerator.GenerateWorld через reflection
+        //  (сигнатура изменилась в 1.6, используем reflection для совместимости)
         // ─────────────────────────────────────────────────────────────────────
 
-        private static void RestorePlayerFaction(Faction oldPlayerFaction)
-{
-    try
-    {
-        FactionManager fm = Find.FactionManager;
-        if (fm == null || oldPlayerFaction == null) return;
-
-        Log.Message("[IO:PlanetSwitcher] FactionManager fields: " +
-            string.Join(", ", typeof(FactionManager)
-                .GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-                .Select(f => f.Name + "(" + f.FieldType.Name + ")")));
-
-        Faction newPlayerFaction = null;
-        try { newPlayerFaction = fm.OfPlayer; } catch { }
-        if (newPlayerFaction == null)
-            newPlayerFaction = fm.AllFactions.FirstOrDefault(f => f != null && f.IsPlayer);
-
-        Log.Message("[IO:PlanetSwitcher] После GenerateWorld: allFactions.Count=" +
-            fm.AllFactions.Count() +
-            " newPlayerFaction=" + (newPlayerFaction?.Name ?? "null") +
-            " oldPlayerFaction=" + oldPlayerFaction.Name +
-            " oldIsPlayer=" + oldPlayerFaction.IsPlayer);
-
-        if (newPlayerFaction != null && newPlayerFaction != oldPlayerFaction)
-        {
-            foreach (Faction npcFaction in fm.AllFactions.ToList())
-            {
-                if (npcFaction == null || npcFaction == newPlayerFaction) continue;
-                ReplaceRelationTarget(npcFaction, newPlayerFaction, oldPlayerFaction);
-            }
-
-            ReplaceFactionInManager(fm, newPlayerFaction, oldPlayerFaction);
-        }
-        else
-        {
-            AddFactionToManager(fm, oldPlayerFaction);
-        }
-
-        ForceSetPlayerFaction(fm, oldPlayerFaction);
-        EnsurePlayerRelations(fm, oldPlayerFaction);
-
-        Faction check = null;
-        try { check = fm.OfPlayer; } catch { }
-        if (check == null)
-            check = fm.AllFactions.FirstOrDefault(f => f != null && f.IsPlayer);
-
-        Log.Message("[IO:PlanetSwitcher] После восстановления: OfPlayer=" + (check?.Name ?? "null"));
-    }
-    catch (Exception ex)
-    {
-        Log.Error("[IO:PlanetSwitcher] RestorePlayerFaction failed: " + ex);
-    }
-}
-
-
-
-private static void ForceSetPlayerFaction(FactionManager fm, Faction playerFaction)
-{
-    if (fm == null || playerFaction == null) return;
-
-    try
-    {
-        FieldInfo allFactionsField = typeof(FactionManager).GetField(
-            "allFactions", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-
-        List<Faction> allFactions = allFactionsField?.GetValue(fm) as List<Faction>;
-        if (allFactions != null && !allFactions.Contains(playerFaction))
-            allFactions.Add(playerFaction);
-
-        foreach (FieldInfo field in typeof(FactionManager).GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public))
-        {
-            if (field.FieldType != typeof(Faction))
-                continue;
-
-            string lower = field.Name.ToLowerInvariant();
-            if (lower.Contains("player") || lower.Contains("ofplayer"))
-            {
-                try { field.SetValue(fm, playerFaction); }
-                catch { }
-            }
-        }
-    }
-    catch (Exception ex)
-    {
-        Log.Warning("[IO:PlanetSwitcher] ForceSetPlayerFaction failed: " + ex);
-    }
-}
-
-private static void EnsurePlayerRelations(FactionManager fm, Faction playerFaction)
-{
-    if (fm == null || playerFaction == null) return;
-
-    foreach (Faction other in fm.AllFactionsListForReading)
-    {
-        if (other == null || other == playerFaction)
-            continue;
-
-        try
-        {
-            playerFaction.RelationWith(other, true);
-        }
-        catch
-        {
-        }
-
-        try
-        {
-            other.RelationWith(playerFaction, true);
-        }
-        catch
-        {
-        }
-
-        ReplaceRelationTarget(other, null, playerFaction);
-    }
-}
-
-        private static void ReplaceRelationTarget(Faction faction, Faction oldTarget, Faction newTarget)
+        private static bool TryCallGenerateWorld(
+            float coverage, string seed,
+            OverallRainfall rainfall, OverallTemperature temperature, OverallPopulation population)
         {
             try
             {
-                // FactionRelation хранит ссылку на другую faction через поле "other"
-                FieldInfo relationsField = typeof(Faction).GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-                    .FirstOrDefault(f => f.FieldType == typeof(List<FactionRelation>));
-                if (relationsField == null) return;
+                MethodInfo method = typeof(WorldGenerator).GetMethod("GenerateWorld",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
 
-                List<FactionRelation> relations = (List<FactionRelation>)relationsField.GetValue(faction);
-                if (relations == null) return;
-
-                FieldInfo otherField = typeof(FactionRelation).GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-                    .FirstOrDefault(f => f.FieldType == typeof(Faction));
-                if (otherField == null) return;
-
-                foreach (FactionRelation rel in relations)
+                if (method == null)
                 {
-                    if (rel != null && (Faction)otherField.GetValue(rel) == oldTarget)
-                        otherField.SetValue(rel, newTarget);
+                    Log.Warning("[IO:PlanetSwitcher] WorldGenerator.GenerateWorld не найден.");
+                    return false;
                 }
+
+                ParameterInfo[] parms = method.GetParameters();
+                object[] args = new object[parms.Length];
+
+                for (int i = 0; i < parms.Length; i++)
+                {
+                    Type   pt = parms[i].ParameterType;
+                    string pn = parms[i].Name?.ToLowerInvariant() ?? "";
+
+                    if (pt == typeof(float) && (pn.Contains("coverage") || pn.Contains("planet")))
+                        args[i] = coverage;
+                    else if (pt == typeof(string) && pn.Contains("seed"))
+                        args[i] = seed;
+                    else if (pt == typeof(OverallRainfall))
+                        args[i] = rainfall;
+                    else if (pt == typeof(OverallTemperature))
+                        args[i] = temperature;
+                    else if (pt == typeof(OverallPopulation))
+                        args[i] = population;
+                    else if (pt.IsEnum)
+                        args[i] = Enum.ToObject(pt, 0); // LandmarkDensity.Normal = 0
+                    else if (pt == typeof(bool))
+                        args[i] = false;
+                    else if (pt.IsValueType)
+                        args[i] = Activator.CreateInstance(pt);
+                    else
+                        args[i] = null;
+                }
+
+                method.Invoke(null, args);
+                Log.Message("[IO:PlanetSwitcher] GenerateWorld вызван. Параметров: " + parms.Length);
+                return true;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Log.Warning("[IO:PlanetSwitcher] TryCallGenerateWorld: " + ex.Message);
+                return false;
+            }
         }
 
-        private static void ReplaceFactionInManager(FactionManager fm, Faction toRemove, Faction toAdd)
-        {
-            // Через reflection заменяем в приватном списке allFactions
-            FieldInfo field = typeof(FactionManager).GetField("allFactions",
-                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+        // ─────────────────────────────────────────────────────────────────────
+        //  Восстановление Maps после GenerateWorld
+        // ─────────────────────────────────────────────────────────────────────
 
-            if (field == null)
+        private static void RestoreMaps(List<Map> savedMaps, Map savedCurrentMap)
+        {
+            if (savedMaps == null || savedMaps.Count == 0) return;
+            try
             {
-                // Пробуем другие варианты имён
-                field = typeof(FactionManager).GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
+                FieldInfo mapsField = typeof(Game)
+                    .GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
+                    .FirstOrDefault(f => f.FieldType == typeof(List<Map>));
+
+                if (mapsField == null)
+                {
+                    Log.Warning("[IO:PlanetSwitcher] RestoreMaps: поле List<Map> не найдено в Game.");
+                    return;
+                }
+
+                List<Map> currentMaps = mapsField.GetValue(Current.Game) as List<Map>;
+                if (currentMaps == null)
+                    mapsField.SetValue(Current.Game, savedMaps);
+                else
+                {
+                    foreach (Map m in savedMaps)
+                        if (!currentMaps.Contains(m))
+                            currentMaps.Add(m);
+                }
+
+                try { if (savedCurrentMap != null) Current.Game.CurrentMap = savedCurrentMap; } catch { }
+
+                Log.Message("[IO:PlanetSwitcher] RestoreMaps: " + savedMaps.Count + " карт.");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("[IO:PlanetSwitcher] RestoreMaps: " + ex.Message);
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        //  Восстановление FactionManager после GenerateWorld
+        // ─────────────────────────────────────────────────────────────────────
+
+        private static void RestoreFactionManager(FactionManager savedFM, List<Faction> savedFactions)
+        {
+            if (savedFM == null) return;
+            try
+            {
+                // Возвращаем сохранённый FactionManager в World
+                FieldInfo fmField = typeof(World)
+                    .GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
+                    .FirstOrDefault(f => f.FieldType == typeof(FactionManager));
+                if (fmField != null)
+                    fmField.SetValue(Find.World, savedFM);
+
+                // Восстанавливаем список фракций
+                if (savedFactions != null)
+                {
+                    List<Faction> fmList = GetAllFactionsList(savedFM);
+                    if (fmList != null)
+                    {
+                        fmList.Clear();
+                        fmList.AddRange(savedFactions);
+                    }
+                }
+
+                Log.Message("[IO:PlanetSwitcher] FactionManager восстановлен. OfPlayer="
+                    + (SafeOfPlayer()?.Name ?? "null"));
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("[IO:PlanetSwitcher] RestoreFactionManager: " + ex.Message);
+            }
+        }
+
+        private static List<Faction> GetAllFactionsList(FactionManager fm)
+        {
+            if (fm == null) return null;
+            FieldInfo field = typeof(FactionManager).GetField(
+                "allFactions", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            if (field == null)
+                field = typeof(FactionManager)
+                    .GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
                     .FirstOrDefault(f => f.FieldType == typeof(List<Faction>));
-            }
-
-            if (field == null)
-            {
-                Log.Warning("[IO:PlanetSwitcher] Не найдено поле List<Faction> в FactionManager.");
-                return;
-            }
-
-            List<Faction> list = (List<Faction>)field.GetValue(fm);
-            if (list == null) return;
-
-            int idx = list.IndexOf(toRemove);
-            if (idx >= 0)
-                list[idx] = toAdd;
-            else if (!list.Contains(toAdd))
-                list.Add(toAdd);
+            return field?.GetValue(fm) as List<Faction>;
         }
 
-        private static void AddFactionToManager(FactionManager fm, Faction faction)
+        private static Faction SafeOfPlayer()
         {
-            FieldInfo field = typeof(FactionManager).GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-                .FirstOrDefault(f => f.FieldType == typeof(List<Faction>));
-            if (field == null) return;
-
-            List<Faction> list = (List<Faction>)field.GetValue(fm);
-            if (list != null && !list.Contains(faction))
-                list.Add(faction);
+            try { return Find.FactionManager?.OfPlayer; }
+            catch { return Find.FactionManager?.AllFactionsListForReading
+                ?.FirstOrDefault(f => f?.IsPlayer == true); }
         }
 
         // ─────────────────────────────────────────────────────────────────────
