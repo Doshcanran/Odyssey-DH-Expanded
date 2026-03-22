@@ -132,10 +132,13 @@ namespace InterstellarOdyssey
                     ? (float)Find.World.info.overallPopulation  : destPlanetDef.overallPopulation;
 
                 // ── 1. Сохраняем всё что GenerateWorld уничтожит ─────────────
-                List<Map>      savedMaps       = Current.Game.Maps.ToList();
-                FactionManager savedFM         = Find.FactionManager;
-                List<Faction>  savedFactions   = GetAllFactionsList(savedFM)?.ToList();
-                Map            savedCurrentMap = Current.Game.CurrentMap;
+                List<Map>      savedMaps            = Current.Game.Maps.ToList();
+                FactionManager savedFM              = Find.FactionManager;
+                List<Faction>  savedFactions        = GetAllFactionsList(savedFM)?.ToList();
+                Map            savedCurrentMap      = Current.Game.CurrentMap;
+                // Сохраняем наш WorldComponent — GenerateWorld его пересоздаёт
+                WorldComponent_Interstellar savedWorldComponent =
+                    Find.World?.GetComponent<WorldComponent_Interstellar>();
 
                 Log.Message("[IO:PlanetSwitcher] Сохранено карт: " + savedMaps.Count
                     + " фракций: " + (savedFactions?.Count ?? 0));
@@ -162,6 +165,11 @@ namespace InterstellarOdyssey
 
                 // ── 4. Восстанавливаем FactionManager ────────────────────────
                 RestoreFactionManager(savedFM, savedFactions);
+
+                // ── 5. Восстанавливаем WorldComponent_Interstellar ───────────
+                // GenerateWorld/RestoreMaps может пересоздать WorldComponents,
+                // поэтому явно возвращаем наш компонент обратно в World.
+                RestoreWorldComponent(savedWorldComponent);
 
                 landingTile = FindLandingTile();
 
@@ -310,6 +318,53 @@ namespace InterstellarOdyssey
             catch (Exception ex)
             {
                 Log.Warning("[IO:PlanetSwitcher] RestoreFactionManager: " + ex.Message);
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        //  Восстановление WorldComponent_Interstellar после GenerateWorld
+        // ─────────────────────────────────────────────────────────────────────
+
+        private static void RestoreWorldComponent(WorldComponent_Interstellar saved)
+        {
+            if (saved == null || Find.World == null) return;
+            try
+            {
+                // Получаем список WorldComponents через reflection
+                FieldInfo field = typeof(World).GetFields(
+                        BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
+                    .FirstOrDefault(f => f.FieldType == typeof(List<WorldComponent>)
+                                     || f.Name.ToLowerInvariant().Contains("component"));
+
+                if (field == null)
+                {
+                    Log.Warning("[IO:PlanetSwitcher] RestoreWorldComponent: поле WorldComponents не найдено.");
+                    return;
+                }
+
+                List<WorldComponent> comps = field.GetValue(Find.World) as List<WorldComponent>;
+                if (comps == null) return;
+
+                // Заменяем новосозданный компонент нашим сохранённым
+                for (int i = 0; i < comps.Count; i++)
+                {
+                    if (comps[i] is WorldComponent_Interstellar)
+                    {
+                        comps[i] = saved;
+                        Log.Message("[IO:PlanetSwitcher] WorldComponent_Interstellar восстановлен."
+                            + " currentPlanetNodeId=" + saved.currentPlanetNodeId
+                            + " shipLocations=" + saved.shipLocations?.Count);
+                        return;
+                    }
+                }
+
+                // Если не нашли — добавляем
+                comps.Add(saved);
+                Log.Message("[IO:PlanetSwitcher] WorldComponent_Interstellar добавлен (не был в списке).");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("[IO:PlanetSwitcher] RestoreWorldComponent: " + ex.Message);
             }
         }
 

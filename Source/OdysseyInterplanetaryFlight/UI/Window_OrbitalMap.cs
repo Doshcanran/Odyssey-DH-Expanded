@@ -119,11 +119,32 @@ namespace InterstellarOdyssey
             Vector2 pos = OrbitalMath.Position(node) * scale;
             Vector2 drawPos = center + pos;
 
-            float size = 24f;
-            Rect iconRect = new Rect(drawPos.x - size / 2f, drawPos.y - size / 2f, size, size);
-            OrbitalIconUtility.DrawNodeIcon(node.type, iconRect);
+            float size = 14f;
+            Color color = Color.white;
 
-            Widgets.Label(new Rect(iconRect.xMax + 6f, iconRect.y - 4f, 170f, 24f), Data.ResolveNodeLabel(node));
+            switch (node.type)
+            {
+                case OrbitalNodeType.Planet:
+                    color = new Color(0.35f, 0.75f, 1f);
+                    size = 18f;
+                    break;
+                case OrbitalNodeType.Station:
+                    color = new Color(0.7f, 1f, 0.7f);
+                    size = 14f;
+                    break;
+                case OrbitalNodeType.AsteroidBelt:
+                    color = new Color(0.7f, 0.7f, 0.7f);
+                    size = 12f;
+                    break;
+                case OrbitalNodeType.Asteroid:
+                    color = new Color(0.7f, 0.65f, 0.55f);
+                    size = 10f;
+                    break;
+            }
+
+            Rect nodeRect = new Rect(drawPos.x - size / 2f, drawPos.y - size / 2f, size, size);
+            Widgets.DrawBoxSolid(nodeRect, color);
+            Widgets.Label(new Rect(nodeRect.xMax + 4f, nodeRect.y - 6f, 150f, 24f), Data.ResolveNodeLabel(node));
         }
 
         private void DrawValidationChecklist(Rect rect)
@@ -155,7 +176,13 @@ namespace InterstellarOdyssey
             Rect inner = rect.ContractedBy(8f);
             Widgets.Label(new Rect(inner.x, inner.y, inner.width, 24f), "Доступные маршруты");
 
-            var destinations = Data.nodes.Where(n => n != null && n.id != current?.id).OrderBy(n => n.galaxyId).ThenBy(n => n.radius).ToList();
+            string currentNodeId = Data.GetCurrentNodeIdForShip(ship);
+            Log.Message("[IO:OrbitalMap] DrawDestinationList: ship=" + (ship?.LabelCap ?? "null")
+                + " thingId=" + (ship?.thingIDNumber.ToString() ?? "?")
+                + " currentNodeId=" + currentNodeId
+                + " currentPlanetNodeId=" + Data.currentPlanetNodeId
+                + " totalNodes=" + Data.nodes.Count);
+            var destinations = Data.nodes.Where(n => n != null && n.id != currentNodeId).OrderBy(n => n.galaxyId).ThenBy(n => n.radius).ToList();
             Rect outRect = new Rect(inner.x, inner.y + 28f, inner.width, inner.height - 28f);
             Rect viewRect = new Rect(0f, 0f, outRect.width - 16f, Mathf.Max(outRect.height - 4f, destinations.Count * 82f + 8f));
 
