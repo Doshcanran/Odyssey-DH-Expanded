@@ -45,7 +45,7 @@ namespace InterstellarOdyssey
                 buttonWidth,
                 buttonHeight);
 
-            if (Widgets.ButtonText(toggleButtonRect, "Галактики"))
+            if (Widgets.ButtonText(toggleButtonRect, "IO_GalaxiesTab".Translate()))
                 InterstellarOdysseyMod.WorldGenGalaxyTabSelected = true;
         }
 
@@ -75,15 +75,15 @@ namespace InterstellarOdyssey
 
             Text.Font = GameFont.Small;
             Text.Anchor = TextAnchor.UpperLeft;
-            Widgets.Label(titleRect, "Настройка галактик, систем и архивов планет перед стартом.");
+            Widgets.Label(titleRect, "IO_GalaxySetupTitle".Translate());
 
-            if (Widgets.ButtonText(factionsButtonRect, "Фракции мира (ваниль)"))
+            if (Widgets.ButtonText(factionsButtonRect, "IO_VanillaWorldFactions".Translate()))
                 TryOpenVanillaFactionSettings();
 
-            if (Widgets.ButtonText(editorButtonRect, "Открыть редактор галактик"))
+            if (Widgets.ButtonText(editorButtonRect, "IO_OpenGalaxyEditor".Translate()))
                 Find.WindowStack.Add(new Dialog_GalaxyWorldConfig(InterstellarOdysseyMod.PendingGalaxyConfig));
 
-            if (Widgets.ButtonText(returnButtonRect, "Вернуться к миру"))
+            if (Widgets.ButtonText(returnButtonRect, "IO_ReturnToWorld".Translate()))
                 InterstellarOdysseyMod.WorldGenGalaxyTabSelected = false;
 
             const float footerHeight = 28f;
@@ -117,10 +117,11 @@ namespace InterstellarOdyssey
                 Rect summaryRect = new Rect(rowInner.x, rowInner.y + 4f, rowInner.width, 24f);
                 Rect startRect = new Rect(rowInner.x, rowInner.y + 34f, rowInner.width, 22f);
 
-                string summary = (galaxy.label ?? galaxy.id) +
-                                 " | станции: " + (galaxy.hasStations ? galaxy.stationCount.ToString() : "выкл") +
-                                 " | пояса: " + (galaxy.hasAsteroidBelts ? galaxy.beltCount.ToString() : "выкл") +
-                                 " | планеты: " + (galaxy.hasPlanets ? galaxy.planetCount.ToString() : "выкл");
+                string summary = "IO_GalaxySummary".Translate(
+                    galaxy.label ?? galaxy.id,
+                    galaxy.hasStations ? galaxy.stationCount.ToString() : "IO_Disabled".Translate(),
+                    galaxy.hasAsteroidBelts ? galaxy.beltCount.ToString() : "IO_Disabled".Translate(),
+                    galaxy.hasPlanets ? galaxy.planetCount.ToString() : "IO_Disabled".Translate());
 
                 Widgets.Label(summaryRect, summary);
 
@@ -128,14 +129,14 @@ namespace InterstellarOdyssey
                     ? galaxy.planets.Find(p => p != null && p.startPlanet)
                     : null;
 
-                Widgets.Label(startRect, "Стартовая планета в галактике: " + (startPlanet != null ? startPlanet.label : "нет"));
+                Widgets.Label(startRect, "IO_StartPlanetInGalaxy".Translate(startPlanet != null ? startPlanet.label : "IO_None".Translate()));
                 y += rowHeight + rowGap;
             }
 
             Widgets.EndScrollView();
 
             GUI.color = new Color(1f, 1f, 1f, 0.92f);
-            Widgets.Label(footerRect, "Пока открыт экран галактик, ванильный интерфейс создания мира полностью заблокирован.");
+            Widgets.Label(footerRect, "IO_GalaxyOverlayLocked".Translate());
             GUI.color = Color.white;
             Text.Anchor = TextAnchor.UpperLeft;
             Text.Font = GameFont.Small;
@@ -150,7 +151,7 @@ namespace InterstellarOdyssey
             catch (System.Exception ex)
             {
                 Log.Error("[InterstellarOdyssey] Не удалось открыть ванильные настройки фракций: " + ex);
-                Messages.Message("Не удалось открыть ванильное окно настройки фракций.", MessageTypeDefOf.RejectInput, false);
+                Messages.Message("IO_OpenFactionSettingsFailed".Translate(), MessageTypeDefOf.RejectInput, false);
             }
         }
     }

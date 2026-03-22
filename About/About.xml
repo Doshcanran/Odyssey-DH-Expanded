@@ -5,8 +5,16 @@
   <supportedVersions>
     <li>1.6</li>
   </supportedVersions>
-  <packageId>openai.odysseyinterplanetaryflight</packageId>
-  <description>Buildable orbital navigation console for Odyssey gravships, synthetic interplanetary routes, an orbital map UI, and travel between generated planetary bodies.</description>
+  <packageId>DH.odysseyinterplanetaryflight</packageId>
+  <description>
+	  Мод добавляет межпланетные перелёты, солнечные системы и путешествия между мирами.
+
+	  Особенности:
+	  - Перелёты между планетами
+	  - Генерация солнечных систем
+	  - Выбор точки посадки
+	  (⚠️ WIP: мод в разработке)
+  </description>
   <modDependencies>
     <li>
       <packageId>Ludeon.RimWorld.Odyssey</packageId>

@@ -20,14 +20,14 @@ namespace InterstellarOdyssey
             data.GenerateIfNeeded();
 
             Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(inRect.x, inRect.y, Mathf.Min(inRect.width - 20f, 420f), 32f), "Солнечная система");
+            Widgets.Label(new Rect(inRect.x, inRect.y, Mathf.Min(inRect.width - 20f, 420f), 32f), "IO_SolarSystem".Translate());
             Text.Font = GameFont.Small;
 
             Rect galaxyButtonsRect = new Rect(inRect.x, inRect.y + 40f, inRect.width - 20f, 80f);
             float galaxyButtonsBottom = GalaxyUiUtility.DrawGalaxyTabs(galaxyButtonsRect, data);
 
             Rect infoRect = new Rect(inRect.x, galaxyButtonsBottom + 8f, inRect.width, 24f);
-            Widgets.Label(infoRect, "Активная галактика: " + (data.GetGalaxyById(data.selectedGalaxyId)?.label ?? data.selectedGalaxyId));
+            Widgets.Label(infoRect, "IO_ActiveGalaxy".Translate(data.GetGalaxyById(data.selectedGalaxyId)?.label ?? data.selectedGalaxyId));
 
             Rect body = new Rect(inRect.x, infoRect.yMax + 8f, inRect.width, inRect.height - (infoRect.yMax - inRect.y) - 8f);
             Window_TransitMonitor.DrawSolarSystemUI(body, data, null, true, data.selectedGalaxyId);
@@ -41,7 +41,7 @@ namespace InterstellarOdyssey
             MainButtonDef def = DefDatabase<MainButtonDef>.GetNamedSilentFail("IO_SolarSystem");
             if (def == null)
             {
-                Messages.Message("Не найден MainButtonDef IO_SolarSystem. Проверь Defs/MainButtons/IO_MainButtons.xml", MessageTypeDefOf.RejectInput, false);
+                Messages.Message("IO_MainButtonDefMissing".Translate(), MessageTypeDefOf.RejectInput, false);
                 Log.Error("InterstellarOdyssey: MainButtonDef IO_SolarSystem not found.");
                 return;
             }

@@ -22,7 +22,7 @@ namespace InterstellarOdyssey
             doCloseButton = true;
             absorbInputAroundWindow = true;
             draggable = false;
-            optionalTitle = "Монитор полёта";
+            optionalTitle = "IO_FlightMonitor".Translate();
         }
 
         public override void DoWindowContents(Rect inRect)
@@ -72,7 +72,7 @@ namespace InterstellarOdyssey
 
             Widgets.DrawMenuSection(sideRect);
             float curY = sideRect.y + 10f;
-            Widgets.Label(new Rect(sideRect.x + 10f, curY, sideRect.width - 20f, 28f), "Маршруты");
+            Widgets.Label(new Rect(sideRect.x + 10f, curY, sideRect.width - 20f, 28f), "IO_Routes".Translate());
             curY += 34f;
 
             foreach (ShipTransitRecord travel in visibleTravels)
@@ -81,33 +81,30 @@ namespace InterstellarOdyssey
                 Widgets.DrawBoxSolid(row, new Color(1f, 1f, 1f, 0.04f));
                 string src = data.ResolveNodeLabel(data.GetNodeById(travel.sourceId));
                 string dst = data.ResolveNodeLabel(data.GetNodeById(travel.destinationId));
-                string routeLabel = (travel.shipLabel ?? "Корабль") + ": " + src + " → " + dst;
+                string routeLabel = "IO_RouteLabel".Translate(travel.shipLabel ?? "IO_ShipLabel".Translate(), src, dst);
                 if (travel.intergalacticTravel)
-                    routeLabel += " [межгалактический]";
+                    routeLabel += " " + "IO_IntergalacticTag".Translate();
                 Widgets.Label(new Rect(row.x + 8f, row.y + 6f, row.width - 16f, 24f), routeLabel);
-                Widgets.Label(new Rect(row.x + 8f, row.y + 30f, row.width - 16f, 24f), "Прогресс: " + (travel.Progress * 100f).ToString("0") + "% | Событий: " + (travel.eventLog != null ? travel.eventLog.Count : 0));
+                Widgets.Label(new Rect(row.x + 8f, row.y + 30f, row.width - 16f, 24f), "IO_Progress".Translate((travel.Progress * 100f).ToString("0")));
 
                 Rect progressRect = new Rect(row.x + 8f, row.y + 54f, row.width - 16f, 18f);
                 Widgets.FillableBar(progressRect, travel.Progress);
 
-                ShipTransitEvent latestEvent = travel.eventLog != null && travel.eventLog.Count > 0 ? travel.eventLog[travel.eventLog.Count - 1] : null;
-                Widgets.Label(new Rect(row.x + 8f, row.y + 74f, row.width - 16f, 20f), latestEvent != null ? ("Последнее: " + latestEvent.title) : "Последнее: нет событий");
-                if (latestEvent != null)
-                    TooltipHandler.TipRegion(new Rect(row.x + 8f, row.y + 74f, row.width - 16f, 20f), ShipTransitEventUtility.DescribeConsequences(latestEvent));
+                Widgets.Label(new Rect(row.x + 8f, row.y + 74f, row.width - 16f, 20f), "IO_FlightNoEvents".Translate());
 
-                if (Widgets.ButtonText(new Rect(row.x + row.width - 118f, row.y + 88f, 110f, 22f), "Монитор"))
+                if (Widgets.ButtonText(new Rect(row.x + row.width - 118f, row.y + 88f, 110f, 22f), "IO_Monitor".Translate()))
                     Find.WindowStack.Add(new Window_TransitMonitor(travel));
 
                 if (travel.stage == InterstellarTransitStage.AwaitingLanding)
                 {
-                    if (Widgets.ButtonText(new Rect(row.x + 8f, row.y + 88f, 110f, 22f), "Посадка"))
+                    if (Widgets.ButtonText(new Rect(row.x + 8f, row.y + 88f, 110f, 22f), "IO_Landing".Translate()))
                         Find.WindowStack.Add(new Window_ShipLanding(travel));
                 }
 
                 if (VoidMapUtility.HasVoidMap(travel))
                 {
                     float boardBtnX = (travel.stage == InterstellarTransitStage.AwaitingLanding) ? row.x + 126f : row.x + 8f;
-                    if (Widgets.ButtonText(new Rect(boardBtnX, row.y + 88f, 110f, 22f), "На борт"))
+                    if (Widgets.ButtonText(new Rect(boardBtnX, row.y + 88f, 110f, 22f), "IO_OnBoard".Translate()))
                     {
                         Map voidMap = VoidMapUtility.GetVoidMap(travel.voidMapTile);
                         if (voidMap != null)
@@ -125,19 +122,19 @@ namespace InterstellarOdyssey
                 Widgets.DrawMenuSection(panel);
                 Rect innerPanel = panel.ContractedBy(8f);
 
-                Widgets.Label(new Rect(innerPanel.x, innerPanel.y, innerPanel.width, 24f), "Журнал событий");
+                Widgets.Label(new Rect(innerPanel.x, innerPanel.y, innerPanel.width, 24f), "IO_EventLog".Translate());
                 float eventY = innerPanel.y + 28f;
 
                 if (highlight.eventLog == null || highlight.eventLog.Count == 0)
                 {
-                    Widgets.Label(new Rect(innerPanel.x, eventY, innerPanel.width, 24f), "Пока спокойно. Событий не было.");
+                    Widgets.Label(new Rect(innerPanel.x, eventY, innerPanel.width, 24f), "IO_NoEventsYet".Translate());
                 }
                 else
                 {
                     for (int i = highlight.eventLog.Count - 1; i >= 0 && eventY < innerPanel.yMax - 22f; i--)
                     {
                         ShipTransitEvent ev = highlight.eventLog[i];
-                        string line = "• " + ev.title + " — " + ev.description + (!string.IsNullOrEmpty(ev.impactSummary) ? " [" + ev.impactSummary + "]" : string.Empty);
+                        string line = "IO_TransitEventLine".Translate(ev.title, ev.description, !string.IsNullOrEmpty(ev.impactSummary) ? "IO_TransitEventImpact".Translate(ev.impactSummary) : string.Empty);
                         Widgets.Label(new Rect(innerPanel.x, eventY, innerPanel.width, 40f), line);
                         eventY += 38f;
                     }

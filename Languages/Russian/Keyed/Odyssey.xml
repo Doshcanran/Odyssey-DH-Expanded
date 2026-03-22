@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<LanguageData>
+  <IO_GalaxiesTab>Галактики</IO_GalaxiesTab>
+  <IO_GalaxySetupTitle>Настройка галактик, систем и архивов планет перед стартом.</IO_GalaxySetupTitle>
+  <IO_VanillaWorldFactions>Фракции мира (ваниль)</IO_VanillaWorldFactions>
+  <IO_OpenGalaxyEditor>Открыть редактор галактик</IO_OpenGalaxyEditor>
+  <IO_ReturnToWorld>Вернуться к миру</IO_ReturnToWorld>
+  <IO_GalaxySummary>{0} | станции: {1} | пояса: {2} | планеты: {3}</IO_GalaxySummary>
+  <IO_Disabled>выкл</IO_Disabled>
+  <IO_StartPlanetInGalaxy>Стартовая планета в галактике: {0}</IO_StartPlanetInGalaxy>
+  <IO_None>нет</IO_None>
+  <IO_GalaxyOverlayLocked>Пока открыт экран галактик, ванильный интерфейс создания мира полностью заблокирован.</IO_GalaxyOverlayLocked>
+  <IO_OpenFactionSettingsFailed>Не удалось открыть ванильное окно настройки фракций.</IO_OpenFactionSettingsFailed>
+
+  <IO_OrbitalMap>Орбитальная карта</IO_OrbitalMap>
+  <IO_OrbitalMapDesc>Открыть карту перелёта и выбрать пункт назначения.</IO_OrbitalMapDesc>
+  <IO_TerminalNoPower>Терминал не запитан.</IO_TerminalNoPower>
+  <IO_NoShipNearTerminal>Не найден корабль рядом с терминалом.</IO_NoShipNearTerminal>
+  <IO_BoardShip>На борт: {0}</IO_BoardShip>
+  <IO_ShipGeneric>корабль</IO_ShipGeneric>
+  <IO_BoardShipDesc>Перейти на карту корабля в полёте.</IO_BoardShipDesc>
+  <IO_DebugShipBounds>DEBUG: Границы корабля</IO_DebugShipBounds>
+  <IO_DebugShipBoundsDesc>Проверить, какой корабль видит навигационный терминал.</IO_DebugShipBoundsDesc>
+  <IO_ShipNotFound>Корабль не найден.</IO_ShipNotFound>
+  <IO_FoundShip>Найден корабль: {0} @ {1}</IO_FoundShip>
+  <IO_DebugDiagnostics>DEBUG: Диагностика</IO_DebugDiagnostics>
+  <IO_DebugDiagnosticsDesc>Открыть окно диагностики перелёта.</IO_DebugDiagnosticsDesc>
+
+  <IO_GalaxySettings>Настройки галактик</IO_GalaxySettings>
+  <IO_SaveSettings>Сохранить настройки</IO_SaveSettings>
+  <IO_GalaxyCount>Количество галактик:</IO_GalaxyCount>
+  <IO_Custom>Своё:</IO_Custom>
+  <IO_Apply>Принять</IO_Apply>
+  <IO_GalaxyName>Название:</IO_GalaxyName>
+  <IO_GalaxyDefaultName>Галактика {0}</IO_GalaxyDefaultName>
+  <IO_Planets>Планеты</IO_Planets>
+  <IO_GalaxyPlanets>Планеты галактики</IO_GalaxyPlanets>
+  <IO_PlanetDefaultName>Планета {0}</IO_PlanetDefaultName>
+  <IO_NameShort>Имя:</IO_NameShort>
+  <IO_StartPlanet>Стартовая</IO_StartPlanet>
+  <IO_VanillaDefaults>Ванильные дефолты</IO_VanillaDefaults>
+  <IO_Temperature>Температура</IO_Temperature>
+  <IO_Rainfall>Осадки</IO_Rainfall>
+  <IO_Population>Население</IO_Population>
+  <IO_Pollution>Загрязнение</IO_Pollution>
+
+  <IO_SolarSystem>Солнечная система</IO_SolarSystem>
+  <IO_ActiveGalaxy>Активная галактика: {0}</IO_ActiveGalaxy>
+  <IO_MainButtonDefMissing>Не найден MainButtonDef IO_SolarSystem. Проверь Defs/MainButtons/IO_MainButtons.xml</IO_MainButtonDefMissing>
+
+  <IO_DiagnosticsLogTitle>Журнал диагностики Interstellar Odyssey</IO_DiagnosticsLogTitle>
+  <IO_DiagnosticsComponentMissing>Диагностический компонент мира не найден.</IO_DiagnosticsComponentMissing>
+  <IO_Category>Категория:</IO_Category>
+  <IO_Clear>Очистить</IO_Clear>
+  <IO_Copy>Скопировать</IO_Copy>
+  <IO_NoRecords>Записей нет.</IO_NoRecords>
+  <IO_SeverityError>Ошибка</IO_SeverityError>
+  <IO_SeverityWarning>Предупреждение</IO_SeverityWarning>
+  <IO_SeverityInfo>Инфо</IO_SeverityInfo>
+  <IO_Record>Запись</IO_Record>
+  <IO_General>Общее</IO_General>
+  <IO_All>Все</IO_All>
+
+  <IO_ShipLandingTitle>Посадка корабля</IO_ShipLandingTitle>
+  <IO_Target>Цель: {0}</IO_Target>
+  <IO_SelectLandingPlaceDesc>Выберите место посадки на глобусе. После клика по тайлу будет создана новая карта, и корабль сядет туда.</IO_SelectLandingPlaceDesc>
+  <IO_StandardLandingMode>Посадка всегда выполняется в одном стандартном режиме.</IO_StandardLandingMode>
+  <IO_LandingModeDisabled>Выбор типа посадки и посадка на существующие карты отключены.</IO_LandingModeDisabled>
+  <IO_SelectLandingPlace>Выбрать место посадки</IO_SelectLandingPlace>
+  <IO_AfterTileSelected>После выбора тайла окно закроется, и корабль начнёт процедуру посадки.</IO_AfterTileSelected>
+  <IO_NoTravelRecord>Нет записи о перелёте.</IO_NoTravelRecord>
+  <IO_PreparePlanetFailed>Не удалось подготовить планету для посадки.</IO_PreparePlanetFailed>
+  <IO_TileOccupied>Этот тайл занят. Выберите другой.</IO_TileOccupied>
+  <IO_LandingFailed>Посадка не удалась.</IO_LandingFailed>
+
+  <IO_FlightMonitor>Монитор полёта</IO_FlightMonitor>
+  <IO_Routes>Маршруты</IO_Routes>
+  <IO_ShipLabel>Корабль</IO_ShipLabel>
+  <IO_RouteLabel>{0}: {1} → {2}</IO_RouteLabel>
+  <IO_IntergalacticTag>[межгалактический]</IO_IntergalacticTag>
+  <IO_Progress>Прогресс: {0}%</IO_Progress>
+  <IO_FlightNoEvents>Полет проходит без событий</IO_FlightNoEvents>
+  <IO_Monitor>Монитор</IO_Monitor>
+  <IO_Landing>Посадка</IO_Landing>
+  <IO_OnBoard>На борт</IO_OnBoard>
+  <IO_EventLog>Журнал событий</IO_EventLog>
+  <IO_NoEventsYet>Пока спокойно. Событий не было.</IO_NoEventsYet>
+  <IO_TransitEventLine>• {0} — {1}{2}</IO_TransitEventLine>
+  <IO_TransitEventImpact> [{0}]</IO_TransitEventImpact>
+
+  <IO_TravelTo>{0} [{1}]</IO_TravelTo>
+  <IO_IntergalacticTestJump>Межгалактический тестовый прыжок: 1 день</IO_IntergalacticTestJump>
+  <IO_IntrasystemRoute>Внутрисистемный маршрут</IO_IntrasystemRoute>
+  <IO_Fly>Лететь</IO_Fly>
+  <IO_NoTravelNodesFound>Других узлов для перелёта не найдено.</IO_NoTravelNodesFound>
+
+  <IO_TravelAlreadyActive>Корабль уже находится в перелёте.</IO_TravelAlreadyActive>
+  <IO_TravelAlreadyAtDestination>Корабль уже находится у этой цели.</IO_TravelAlreadyAtDestination>
+  <IO_PreflightDiagnostics>Предполётная диагностика</IO_PreflightDiagnostics>
+  <IO_ShipCompositionUnknown>Не удалось определить состав корабля.</IO_ShipCompositionUnknown>
+  <IO_InsufficientThrust>Недостаточная тяга.</IO_InsufficientThrust>
+  <IO_InsufficientFuel>Недостаточно топлива. Нужно {0}, доступно {1}.</IO_InsufficientFuel>
+  <IO_PlanetMapsSaved>Карты планеты «{0}» сохранены ({1} шт.).</IO_PlanetMapsSaved>
+  <IO_ShipCaptureFailed>Не удалось захватить корабль.</IO_ShipCaptureFailed>
+  <IO_VoidMapNotCreated>Карта вакуума не создана, перелёт продолжается.</IO_VoidMapNotCreated>
+  <IO_IntergalacticTravelStarted>Межгалактический перелёт: {0} → {1}. Время: 1 день.</IO_IntergalacticTravelStarted>
+  <IO_TravelStarted>Перелёт: {0} → {1}. Топлива: {2}</IO_TravelStarted>
+  <IO_TravelStartedTitle>Перелёт начат</IO_TravelStartedTitle>
+  <IO_TravelAbortedRollback>Перелёт прерван. Откат выполнен.</IO_TravelAbortedRollback>
+  <IO_TargetMapNotSpecified>Целевая карта не указана.</IO_TargetMapNotSpecified>
+  <IO_LandingModeUnavailable>Этот режим посадки недоступен.</IO_LandingModeUnavailable>
+  <IO_LandingCancelledCaptureFailed>Посадка отменена: не удалось захватить корабль с карты вакуума.</IO_LandingCancelledCaptureFailed>
+  <IO_LandingFailedTitle>Посадка не удалась</IO_LandingFailedTitle>
+  <IO_TryRestoreShipReturnedFalse>TryRestoreShip вернул false.</IO_TryRestoreShipReturnedFalse>
+  <IO_LandingModeDetail>Режим: {0}</IO_LandingModeDetail>
+  <IO_LandingCompletedTitle>Посадка завершена</IO_LandingCompletedTitle>
+  <IO_LandingCompletedAt>{0} у {1}</IO_LandingCompletedAt>
+  <IO_ShipLandedNear>Корабль {0} совершил посадку у {1}.</IO_ShipLandedNear>
+  <IO_SelectTile>Select tile</IO_SelectTile>
+  <IO_WorldRegeneratedTitle>Мир перегенерирован</IO_WorldRegeneratedTitle>
+  <IO_NewPlanet>Новая планета: {0}</IO_NewPlanet>
+  <IO_CreateMapAtTileFailed>Не удалось создать карту на выбранном тайле.</IO_CreateMapAtTileFailed>
+  <IO_ShipLandedOn>Корабль {0} совершил посадку на «{1}».</IO_ShipLandedOn>
+  <IO_LandingZone>Посадочная зона</IO_LandingZone>
+  <IO_Unknown>Неизвестно</IO_Unknown>
+  <IO_LandingModeEmergency>аварийная</IO_LandingModeEmergency>
+  <IO_LandingModeOrbitalDrop>орбитальный дроп</IO_LandingModeOrbitalDrop>
+  <IO_LandingModeUnpreparedSurface>неподготовленная поверхность</IO_LandingModeUnpreparedSurface>
+  <IO_LandingModeStationDocking>стыковка</IO_LandingModeStationDocking>
+  <IO_LandingModePrecise>точная</IO_LandingModePrecise>
+  <IO_OrbitDepartureTitle>Выход на орбиту</IO_OrbitDepartureTitle>
+  <IO_ShipReachedOrbit>Корабль вышел на орбиту: {0}. Режим: {1}.</IO_ShipReachedOrbit>
+
+  <IO_Coverage>Покрытие</IO_Coverage>
+  <IO_RefreshCheck>Обновить проверку</IO_RefreshCheck>
+  <IO_CurrentTarget>Текущая цель: {0} | Галактика: {1}</IO_CurrentTarget>
+  <IO_ShipAlreadyInTransit>Этот корабль уже находится в перелёте.</IO_ShipAlreadyInTransit>
+  <IO_ShipCheck>Проверка корабля</IO_ShipCheck>
+  <IO_NoData>Нет данных.</IO_NoData>
+  <IO_AvailableRoutes>Доступные маршруты</IO_AvailableRoutes>
+  <IO_RefreshOrbitalMap>Орбитальная карта</IO_RefreshOrbitalMap>
+  <IO_SelectTile>Выбрать тайл</IO_SelectTile>
+</LanguageData>

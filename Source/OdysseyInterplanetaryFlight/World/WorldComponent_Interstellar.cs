@@ -91,7 +91,6 @@ namespace InterstellarOdyssey
             {
                 ShipTransitRecord travel = activeTravels[i];
                 if (travel == null || travel.stage != InterstellarTransitStage.InTransit) continue;
-                ShipTransitEventUtility.TryProcessEvent(this, travel);
                 if (Find.TickManager.TicksGame >= travel.arrivalTick)
                     Arrive(travel);
             }
@@ -128,7 +127,7 @@ namespace InterstellarOdyssey
 
             if (IsShipTravelling(shipAnchor))
             {
-                Messages.Message("Корабль уже находится в перелёте.", MessageTypeDefOf.RejectInput, false);
+                Messages.Message("IO_TravelAlreadyActive".Translate(), MessageTypeDefOf.RejectInput, false);
                 return false;
             }
 
@@ -137,13 +136,13 @@ namespace InterstellarOdyssey
 
             if (current != null && current.id == destination.id)
             {
-                Messages.Message("Корабль уже находится у этой цели.", MessageTypeDefOf.RejectInput, false);
+                Messages.Message("IO_TravelAlreadyAtDestination".Translate(), MessageTypeDefOf.RejectInput, false);
                 return false;
             }
 
             string launchDiag = InterstellarDiagnostics.BuildLaunchDiagnosticReport(
                 this, shipAnchor, current, destination);
-            AddDiagnostic("Launch", "Предполётная диагностика", shipAnchor.LabelCap,
+            AddDiagnostic("Launch", "IO_PreflightDiagnostics".Translate(), shipAnchor.LabelCap,
                 launchDiag, InterstellarDiagnosticSeverity.Info);
 
             ShipValidationReport validation = ShipValidationUtility.ValidateForLaunch(shipAnchor);
@@ -155,20 +154,19 @@ namespace InterstellarOdyssey
 
             if (!ShipCaptureUtility.TryCollectShipCluster(shipAnchor, out ShipClusterData launchCluster))
             {
-                Messages.Message("Не удалось определить состав корабля.", MessageTypeDefOf.RejectInput, false);
+                Messages.Message("IO_ShipCompositionUnknown".Translate(), MessageTypeDefOf.RejectInput, false);
                 return false;
             }
 
             ShipPropulsionReport propulsion = ShipPropulsionUtility.Evaluate(launchCluster, current, destination);
             if (!propulsion.hasEnoughThrust)
             {
-                Messages.Message("Недостаточная тяга.", MessageTypeDefOf.RejectInput, false);
+                Messages.Message("IO_InsufficientThrust".Translate(), MessageTypeDefOf.RejectInput, false);
                 return false;
             }
             if (!propulsion.hasEnoughFuel)
             {
-                Messages.Message("Недостаточно топлива. Нужно " + propulsion.fuelNeeded.ToString("0.#")
-                    + ", доступно " + propulsion.totalFuel.ToString("0.#") + ".",
+                Messages.Message("IO_InsufficientFuel".Translate(propulsion.fuelNeeded.ToString("0.#"), propulsion.totalFuel.ToString("0.#")),
                     MessageTypeDefOf.RejectInput, false);
                 return false;
             }
@@ -188,27 +186,31 @@ namespace InterstellarOdyssey
             {
                 EnsureCurrentNodeForShip(shipAnchor, currentNodeId);
 
-if (!ShipCaptureUtility.TryCaptureAndDespawnShip(shipAnchor, currentNodeId, out snapshot))
-{
-    Messages.Message("Не удалось захватить корабль.", MessageTypeDefOf.RejectInput, false);
-    return false;
-}
+                // ── При межпланетном прыжке: архивируем карты и состояние планеты ──
+                if (isPlanetJump)
+                {
+                    // 1. Сохраняем состояние планеты (seed, поселения)
+                    PlanetDefinition_IO srcDef = FindPlanetDefById(currentNodeId);
+                    _planetStateArchive[currentNodeId] =
+                        PlanetSwitcher.CapturePlanetState(currentNodeId, srcDef);
 
-// ── При межпланетном прыжке: архивируем карту уже без корабля ──
-if (isPlanetJump)
-{
-    PlanetDefinition_IO srcDef = FindPlanetDefById(currentNodeId);
-    _planetStateArchive[currentNodeId] =
-        PlanetSwitcher.CapturePlanetState(currentNodeId, srcDef);
+                    // 2. Архивируем ВСЕ карты на диск ПЕРЕД захватом корабля
+                    //    (пока корабль ещё заспавнен — он тоже попадёт в архив карты,
+                    //     но мы его потом деспавним через TryCaptureAndDespawnShip)
+                    List<ArchivedMapMeta> metas = MapArchiver.ArchiveAllMaps(currentNodeId);
+                    _mapArchive[currentNodeId] = metas;
 
-    List<ArchivedMapMeta> metas = MapArchiver.ArchiveAllMaps(currentNodeId);
-    _mapArchive[currentNodeId] = metas;
+                    Messages.Message(
+                        "IO_PlanetMapsSaved".Translate(srcDef?.label ?? currentNodeId, metas.Count),
+                        MessageTypeDefOf.NeutralEvent, false);
+                }
+                // ────────────────────────────────────────────────────────────────
 
-    Messages.Message(
-        "Карты планеты «" + (srcDef?.label ?? currentNodeId)
-        + "» сохранены (" + metas.Count + " шт.).",
-        MessageTypeDefOf.NeutralEvent, false);
-}
+                if (!ShipCaptureUtility.TryCaptureAndDespawnShip(shipAnchor, currentNodeId, out snapshot))
+                {
+                    Messages.Message("IO_ShipCaptureFailed".Translate(), MessageTypeDefOf.RejectInput, false);
+                    return false;
+                }
 
                 ShipPropulsionUtility.ConsumeFuel(launchCluster, propulsion.fuelNeeded);
                 fuelCommitted = true;
@@ -238,20 +240,21 @@ if (isPlanetJump)
                     destinationGalaxyId  = destination.galaxyId
                 };
 
-                ShipTransitEventUtility.ScheduleNextEvent(record, Find.TickManager.TicksGame);
+                record.nextEventTick = 0;
+                if (record.eventLog != null)
+                    record.eventLog.Clear();
                 activeTravels.Add(record);
                 travelAdded = true;
 
                 if (!VoidMapUtility.CreateVoidMap(record))
-                    Messages.Message("Карта вакуума не создана, перелёт продолжается.",
+                    Messages.Message("IO_VoidMapNotCreated".Translate(),
                         MessageTypeDefOf.NeutralEvent, false);
 
                 string msg = intergalactic
-                    ? "Межгалактический перелёт: " + record.shipLabel + " → " + ResolveNodeLabel(destination) + ". Время: 1 день."
-                    : "Перелёт: " + record.shipLabel + " → " + ResolveNodeLabel(destination)
-                      + ". Топлива: " + propulsion.fuelNeeded.ToString("0.#");
+                    ? "IO_IntergalacticTravelStarted".Translate(record.shipLabel, ResolveNodeLabel(destination))
+                    : "IO_TravelStarted".Translate(record.shipLabel, ResolveNodeLabel(destination), propulsion.fuelNeeded.ToString("0.#"));
 
-                AddDiagnostic("Launch", "Перелёт начат", msg, launchDiag, InterstellarDiagnosticSeverity.Info);
+                AddDiagnostic("Launch", "IO_TravelStartedTitle".Translate(), msg, launchDiag, InterstellarDiagnosticSeverity.Info);
                 Messages.Message(msg, MessageTypeDefOf.PositiveEvent, false);
                 return true;
             }
@@ -264,7 +267,7 @@ if (isPlanetJump)
                 if (snapshot != null && sourceMap != null)
                     try { ShipLandingUtility.TryRestoreShip(snapshot, sourceMap, srcCell,
                         ShipLandingMode.Precise, out _); } catch { }
-                Messages.Message("Перелёт прерван. Откат выполнен.", MessageTypeDefOf.RejectInput, false);
+                Messages.Message("IO_TravelAbortedRollback".Translate(), MessageTypeDefOf.RejectInput, false);
                 return false;
             }
         }
@@ -277,59 +280,70 @@ if (isPlanetJump)
             if (record == null || record.snapshot == null) return false;
             if (map == null)
             {
-                Messages.Message("Целевая карта не указана.", MessageTypeDefOf.RejectInput, false);
+                Messages.Message("IO_TargetMapNotSpecified".Translate(), MessageTypeDefOf.RejectInput, false);
                 return false;
             }
 
-            mode = ShipLandingMode.Precise;
-
             OrbitalNode destNode = GetNodeById(record.destinationId);
 
+            if (!ShipLandingUtility.IsModeAllowedForDestination(mode, destNode, out string reason))
+            {
+                Messages.Message(reason ?? "IO_LandingModeUnavailable".Translate(),
+                    MessageTypeDefOf.RejectInput, false);
+                return false;
+            }
+
+            // Захват актуального состояния с карты вакуума
             if (VoidMapUtility.HasVoidMap(record))
             {
                 if (!VoidMapUtility.RecaptureShipFromVoidMap(record))
                 {
-                    Messages.Message("Посадка отменена: не удалось захватить корабль с карты вакуума.",
+                    Messages.Message("IO_LandingCancelledCaptureFailed".Translate(),
                         MessageTypeDefOf.RejectInput, false);
                     return false;
                 }
                 VoidMapUtility.DestroyVoidMap(record);
             }
 
+            // Обновляем текущую планету при смене
             if (destNode != null && destNode.type == OrbitalNodeType.Planet)
                 currentPlanetNodeId = destNode.id;
 
             Map landingMap = map;
 
+            // ── Размещаем корабль ─────────────────────────────────────────────
             if (!ShipLandingUtility.TryFindLandingCenter(record.snapshot, landingMap, mode, out IntVec3 center))
                 center = landingMap.Center;
 
             if (!ShipLandingUtility.TryRestoreShip(record.snapshot, landingMap, center, mode, out Thing restoredAnchor))
             {
-                AddDiagnostic("Landing", "Посадка не удалась", "TryRestoreShip вернул false.",
-                    "mode=Precise", InterstellarDiagnosticSeverity.Error);
+                AddDiagnostic("Landing", "IO_LandingFailedTitle".Translate(), "IO_TryRestoreShipReturnedFalse".Translate(),
+                    "mode=" + mode, InterstellarDiagnosticSeverity.Error);
                 return false;
             }
 
             ShipLandingUtility.SpawnTransitLoot(record, landingMap, center);
 
+            // ── Финализация ────────────────────────────────────────────────────
             record.stage = InterstellarTransitStage.None;
             if (record.snapshot != null)
                 record.snapshot.currentNodeId = record.destinationId;
 
-            currentPlanetNodeId = record.destinationId;
             SetCurrentNodeForShip(restoredAnchor, record.destinationId,
                 record.shipDefName, record.shipLabel, record.shipThingId);
             activeTravels.Remove(record);
             SelectGalaxy(destNode?.galaxyId ?? selectedGalaxyId);
 
-            AddDiagnostic("Landing", "Посадка завершена",
-                record.shipLabel + " у " + ResolveNodeLabel(destNode),
-                "Режим: стандартная посадка", InterstellarDiagnosticSeverity.Info);
+            string detail = "IO_LandingModeDetail".Translate(ResolveLandingModeLabel(mode))
+                + "\n" + ShipLandingUtility.DescribeMode(mode)
+                + "\n" + ShipLandingUtility.DescribeModeConsequences(mode);
+
+            AddDiagnostic("Landing", "IO_LandingCompletedTitle".Translate(),
+                "IO_LandingCompletedAt".Translate(record.shipLabel, ResolveNodeLabel(destNode)),
+                detail, InterstellarDiagnosticSeverity.Info);
 
             Messages.Message(
-                "Корабль " + (record.shipLabel ?? "?") + " совершил посадку у "
-                + ResolveNodeLabel(destNode) + ".",
+                "IO_ShipLandedNear".Translate(record.shipLabel ?? "?", ResolveNodeLabel(destNode)) + " [" + ResolveLandingModeLabel(mode) + "].",
                 MessageTypeDefOf.PositiveEvent, false);
 
             if (Current.ProgramState == ProgramState.Playing)
@@ -360,7 +374,7 @@ if (isPlanetJump)
             {
                 if (!VoidMapUtility.RecaptureShipFromVoidMap(record))
                 {
-                    Messages.Message("Не удалось захватить корабль с карты вакуума.",
+                    Messages.Message("IO_LandingCancelledCaptureFailed".Translate(),
                         MessageTypeDefOf.RejectInput, false);
                     return false;
                 }
@@ -386,8 +400,8 @@ if (isPlanetJump)
 
             currentPlanetNodeId = record.destinationId;
 
-            AddDiagnostic("Landing", "Мир перегенерирован",
-                "Новая планета: " + ResolveNodeLabel(destNode),
+            AddDiagnostic("Landing", "IO_WorldRegeneratedTitle".Translate(),
+                "IO_NewPlanet".Translate(ResolveNodeLabel(destNode)),
                 "seed=" + (destDef?.id ?? "?"), InterstellarDiagnosticSeverity.Info);
 
             return true;
@@ -407,79 +421,50 @@ if (isPlanetJump)
         {
             if (record == null || record.snapshot == null) return false;
 
-            mode = ShipLandingMode.Precise;
+            // PrepareNewPlanetWorld уже вызван ДО открытия глобуса:
+            // мир перегенерирован, вакуум удалён, currentPlanetNodeId обновлён.
 
             OrbitalNode destNode = GetNodeById(record.destinationId);
 
+            // ── Генерируем карту на выбранном тайле нового мира ──────────────
             Map landingMap = InterplanetaryLandingHelper.GenerateMapAtTile(tile, destNode);
             if (landingMap == null)
             {
-                Messages.Message("Не удалось создать карту на выбранном тайле.",
+                Messages.Message("IO_CreateMapAtTileFailed".Translate(),
                     MessageTypeDefOf.RejectInput, false);
                 return false;
             }
+
+            // ── 3. Размещаем корабль ──────────────────────────────────────────
+            if (!ShipLandingUtility.IsModeAllowedForDestination(mode, destNode, out _))
+                mode = ShipLandingMode.Precise;
 
             if (!ShipLandingUtility.TryFindLandingCenter(record.snapshot, landingMap, mode, out IntVec3 center))
                 center = landingMap.Center;
 
             if (!ShipLandingUtility.TryRestoreShip(record.snapshot, landingMap, center, mode, out Thing restoredAnchor))
             {
-                AddDiagnostic("Landing", "Посадка не удалась", "TryRestoreShip вернул false.",
+                AddDiagnostic("Landing", "IO_LandingFailedTitle".Translate(), "IO_TryRestoreShipReturnedFalse".Translate(),
                     "tile=" + tile, InterstellarDiagnosticSeverity.Error);
                 return false;
             }
 
             ShipLandingUtility.SpawnTransitLoot(record, landingMap, center);
 
+            // FixSpawnedFactions и NormalizeLandedPawns больше не нужны:
+            // мы не вызываем GenerateWorld, поэтому faction-ссылки остаются валидными.
+
             record.stage = InterstellarTransitStage.None;
-            if (record.snapshot != null)
-                record.snapshot.currentNodeId = record.destinationId;
+            if (record.snapshot != null) record.snapshot.currentNodeId = record.destinationId;
 
-            currentPlanetNodeId = record.destinationId;
-            // Используем ID самого якоря (после respawn он может отличаться от record.shipThingId)
-            int landedAnchorId = restoredAnchor != null ? restoredAnchor.thingIDNumber : record.shipThingId;
             SetCurrentNodeForShip(restoredAnchor, record.destinationId,
-                record.shipDefName, record.shipLabel, landedAnchorId);
-
-            // Синхронизируем все записи по defName/label на случай если thingIDNumber изменился после respawn
-            if (restoredAnchor != null)
-            {
-                string dn  = record.shipDefName;
-                string lbl = record.shipLabel;
-                foreach (ShipLocationRecord loc in shipLocations)
-                {
-                    if (loc == null) continue;
-                    bool match = (!string.IsNullOrEmpty(dn)  && loc.shipDefName == dn)
-                              || (!string.IsNullOrEmpty(lbl) && loc.shipLabel   == lbl);
-                    if (match)
-                    {
-                        loc.shipThingId   = restoredAnchor.thingIDNumber;
-                        loc.currentNodeId = record.destinationId;
-                    }
-                }
-            }
-
+                record.shipDefName, record.shipLabel, record.shipThingId);
             activeTravels.Remove(record);
             SelectGalaxy(destNode?.galaxyId ?? selectedGalaxyId);
 
             Messages.Message(
-                "Корабль " + (record.shipLabel ?? "?") + " совершил посадку на «"
-                + ResolveNodeLabel(destNode) + "».",
+                "IO_ShipLandedOn".Translate(record.shipLabel ?? "?", ResolveNodeLabel(destNode)) + " [" + ResolveLandingModeLabel(mode) + "].",
                 MessageTypeDefOf.PositiveEvent, false);
-
-            // Диагностика после посадки
-            Log.Message("[IO:Landing] TryLandShipOnNewPlanet DONE:"
-                + " currentPlanetNodeId=" + currentPlanetNodeId
-                + " restoredAnchor=" + (restoredAnchor?.LabelCap ?? "null")
-                + " anchorId=" + (restoredAnchor?.thingIDNumber.ToString() ?? "?")
-                + " record.shipThingId=" + record.shipThingId
-                + " shipLocations.Count=" + shipLocations.Count);
-            foreach (var slr in shipLocations)
-                if (slr != null)
-                    Log.Message("[IO:Landing]   loc: thingId=" + slr.shipThingId
-                        + " defName=" + slr.shipDefName
-                        + " label=" + slr.shipLabel
-                        + " nodeId=" + slr.currentNodeId);
 
             if (Current.ProgramState == ProgramState.Playing)
                 Current.Game.CurrentMap = landingMap;
@@ -514,7 +499,7 @@ if (isPlanetJump)
             // WorldObjectMaker.MakeWorldObject(Settlement) возвращает Settlement (наследник MapParent)
             Settlement settlement = (Settlement)WorldObjectMaker.MakeWorldObject(WorldObjectDefOf.Settlement);
             settlement.Tile = finalTile;
-            settlement.Name = node?.label ?? "Посадочная зона";
+            settlement.Name = node?.label ?? "IO_LandingZone".Translate();
 
             // Безопасно получаем фракцию — после GenerateWorld может быть null
             Faction playerFaction = SafeGetPlayerFaction();
@@ -710,14 +695,13 @@ private static void NormalizeLandedPawns(Map map)
                 SelectGalaxy(destination.galaxyId);
             }
 
-            AddDiagnostic("Transit", "Выход на орбиту",
+            AddDiagnostic("Transit", "IO_OrbitDepartureTitle".Translate(),
                 record.shipLabel + " → " + ResolveNodeLabel(destination),
-                "Режим: " + ResolveLandingModeLabel(record.preferredLandingMode),
+                "IO_LandingModeDetail".Translate(ResolveLandingModeLabel(record.preferredLandingMode)),
                 InterstellarDiagnosticSeverity.Info);
 
             Messages.Message(
-                "Корабль вышел на орбиту: " + ResolveNodeLabel(destination)
-                + ". Режим: " + ResolveLandingModeLabel(record.preferredLandingMode) + ".",
+                "IO_ShipReachedOrbit".Translate(ResolveNodeLabel(destination), ResolveLandingModeLabel(record.preferredLandingMode)),
                 MessageTypeDefOf.PositiveEvent, false);
 
             if (Current.ProgramState == ProgramState.Playing)
@@ -737,7 +721,9 @@ private static void NormalizeLandedPawns(Map map)
         {
             GenerateIfNeeded();
             if (string.IsNullOrEmpty(galaxyId)) galaxyId = selectedGalaxyId;
-            return nodes.Where(n => n != null && n.galaxyId == galaxyId);
+            return nodes.Where(n => n != null
+                && n.galaxyId == galaxyId
+                && n.type == OrbitalNodeType.Planet);
         }
 
         public IEnumerable<OrbitalNode> GetNodesForSelectedGalaxy()
@@ -775,49 +761,19 @@ private static void NormalizeLandedPawns(Map map)
         }
 
         public string GetCurrentNodeIdForShip(Thing ship)
-{
-    if (ship == null)
-        return GetDefaultHomeNodeId();
-
-    // ── 1. Корабль в активном перелёте ───────────────────────────────────
-    ShipTransitRecord transitRecord = activeTravels.FirstOrDefault(
-        t => t != null && t.shipThingId == ship.thingIDNumber);
-    if (transitRecord != null)
-    {
-        string transitResult = transitRecord.stage == InterstellarTransitStage.AwaitingLanding
-            ? (transitRecord.destinationId ?? transitRecord.sourceId ?? GetDefaultHomeNodeId())
-            : (transitRecord.sourceId ?? GetDefaultHomeNodeId());
-        Log.Message("[IO:NodeId] ship=" + ship.LabelCap + " id=" + ship.thingIDNumber
-            + " → transit stage=" + transitRecord.stage + " result=" + transitResult);
-        return transitResult;
-    }
-
-    // ── 2. Есть запись в ShipLocationRecord (по thingID, defName или label) ─
-    ShipLocationRecord loc = FindLocationRecord(ship);
-    if (loc != null && !string.IsNullOrEmpty(loc.currentNodeId))
-    {
-        Log.Message("[IO:NodeId] ship=" + ship.LabelCap + " id=" + ship.thingIDNumber
-            + " → loc.currentNodeId=" + loc.currentNodeId + " loc.thingId=" + loc.shipThingId);
-        return loc.currentNodeId;
-    }
-
-    // ── 3. Fallback: currentPlanetNodeId (глобальное состояние) ─────────
-    if (!string.IsNullOrEmpty(currentPlanetNodeId))
-    {
-        Log.Message("[IO:NodeId] ship=" + ship.LabelCap + " id=" + ship.thingIDNumber
-            + " → fallback currentPlanetNodeId=" + currentPlanetNodeId
-            + " (loc was " + (loc == null ? "null" : "empty nodeId") + ")");
-        SetCurrentNodeForShip(ship, currentPlanetNodeId, ship.def?.defName, ship.LabelCap, ship.thingIDNumber);
-        return currentPlanetNodeId;
-    }
-
-    // ── 4. Последний fallback: homeworld ─────────────────────────────────
-    Log.Warning("[IO:NodeId] ship=" + ship.LabelCap + " id=" + ship.thingIDNumber
-        + " → HOMEWORLD fallback! currentPlanetNodeId empty, loc=null, no transit."
-        + " shipLocations.Count=" + shipLocations.Count);
-    EnsureHomeworldLocation(ship);
-    return GetDefaultHomeNodeId();
-}
+        {
+            if (ship == null) return GetDefaultHomeNodeId();
+            ShipTransitRecord record = activeTravels.FirstOrDefault(
+                t => t != null && t.shipThingId == ship.thingIDNumber);
+            if (record != null)
+                return record.stage == InterstellarTransitStage.AwaitingLanding
+                    ? (record.destinationId ?? record.sourceId)
+                    : (record.sourceId ?? GetDefaultHomeNodeId());
+            ShipLocationRecord loc = FindLocationRecord(ship);
+            if (loc != null && !string.IsNullOrEmpty(loc.currentNodeId)) return loc.currentNodeId;
+            EnsureHomeworldLocation(ship);
+            return GetDefaultHomeNodeId();
+        }
 
         public OrbitalNode GetNodeById(string id)
         {
@@ -827,7 +783,7 @@ private static void NormalizeLandedPawns(Map map)
 
         public string ResolveNodeLabel(OrbitalNode node)
         {
-            if (node == null) return "Неизвестно";
+            if (node == null) return "IO_Unknown".Translate();
             return string.IsNullOrEmpty(node.label) ? node.id : node.label;
         }
 
@@ -835,11 +791,11 @@ private static void NormalizeLandedPawns(Map map)
         {
             switch (mode)
             {
-                case ShipLandingMode.Emergency:         return "аварийная";
-                case ShipLandingMode.OrbitalDrop:       return "орбитальный дроп";
-                case ShipLandingMode.UnpreparedSurface: return "неподготовленная поверхность";
-                case ShipLandingMode.StationDocking:    return "стыковка";
-                default: return "точная";
+                case ShipLandingMode.Emergency:         return "IO_LandingModeEmergency".Translate();
+                case ShipLandingMode.OrbitalDrop:       return "IO_LandingModeOrbitalDrop".Translate();
+                case ShipLandingMode.UnpreparedSurface: return "IO_LandingModeUnpreparedSurface".Translate();
+                case ShipLandingMode.StationDocking:    return "IO_LandingModeStationDocking".Translate();
+                default: return "IO_LandingModePrecise".Translate();
             }
         }
 
@@ -885,100 +841,30 @@ private static void NormalizeLandedPawns(Map map)
                 ship?.def?.defName, ship?.LabelCap);
 
         private ShipLocationRecord FindLocationRecord(Thing ship)
-{
-    if (ship == null)
-        return null;
+            => ship == null ? null : FindLocationRecord(ship.thingIDNumber, ship.def?.defName);
 
-    ShipLocationRecord byId = FindLocationRecord(ship.thingIDNumber, ship.def?.defName);
-    if (byId != null)
-        return byId;
-
-    string label = ship.LabelCap;
-    if (!string.IsNullOrEmpty(label))
-    {
-        ShipLocationRecord byLabel = shipLocations.FirstOrDefault(r =>
-            r != null &&
-            !string.IsNullOrEmpty(r.shipLabel) &&
-            r.shipLabel == label &&
-            (string.IsNullOrEmpty(ship.def?.defName) || r.shipDefName == ship.def.defName));
-
-        if (byLabel != null)
-            return byLabel;
-    }
-
-    return null;
-}
-
-private ShipLocationRecord FindLocationRecord(int id, string defName)
-{
-    ShipLocationRecord byId = shipLocations.FirstOrDefault(r => r != null && r.shipThingId == id);
-    if (byId != null)
-        return byId;
-
-    if (!string.IsNullOrEmpty(defName))
-    {
-        List<ShipLocationRecord> byDef = shipLocations
-            .Where(r => r != null && r.shipDefName == defName)
-            .ToList();
-
-        if (byDef.Count == 1)
-            return byDef[0];
-
-        ShipLocationRecord legacy = byDef.FirstOrDefault(r => r.shipThingId == 0);
-        if (legacy != null)
-            return legacy;
-    }
-
-    return null;
-}
-
-private void SetCurrentNodeForShip(Thing ship, string nodeId,
-    string defName = null, string label = null, int fallbackId = 0)
-{
-    int thingId = ship != null ? ship.thingIDNumber : fallbackId;
-    string dn = ship?.def?.defName ?? defName;
-    string lbl = ship != null ? ship.LabelCap : label;
-
-    ShipLocationRecord loc = FindLocationRecord(ship)
-        ?? FindLocationRecord(thingId, dn);
-
-    if (loc == null && !string.IsNullOrEmpty(lbl))
-    {
-        loc = shipLocations.FirstOrDefault(r =>
-            r != null &&
-            !string.IsNullOrEmpty(r.shipLabel) &&
-            r.shipLabel == lbl &&
-            (string.IsNullOrEmpty(dn) || r.shipDefName == dn));
-    }
-
-    if (loc == null)
-    {
-        loc = new ShipLocationRecord();
-        shipLocations.Add(loc);
-    }
-
-    loc.shipThingId = thingId;
-    loc.shipDefName = dn;
-    loc.shipLabel = lbl;
-    loc.currentNodeId = string.IsNullOrEmpty(nodeId) ? GetDefaultHomeNodeId() : nodeId;
-
-    if (thingId != 0)
-    {
-        for (int i = shipLocations.Count - 1; i >= 0; i--)
+        private ShipLocationRecord FindLocationRecord(int id, string defName)
         {
-            ShipLocationRecord other = shipLocations[i];
-            if (other == null || ReferenceEquals(other, loc))
-                continue;
-
-            bool sameId = other.shipThingId == thingId && thingId != 0;
-            bool sameLabel = !string.IsNullOrEmpty(lbl) && other.shipLabel == lbl &&
-                             (string.IsNullOrEmpty(dn) || other.shipDefName == dn);
-
-            if (sameId || sameLabel)
-                shipLocations.RemoveAt(i);
+            var byId = shipLocations.FirstOrDefault(r => r != null && r.shipThingId == id);
+            if (byId != null) return byId;
+            if (!string.IsNullOrEmpty(defName))
+                return shipLocations.FirstOrDefault(r => r != null && r.shipThingId == 0 && r.shipDefName == defName);
+            return null;
         }
-    }
-}
+
+        private void SetCurrentNodeForShip(Thing ship, string nodeId,
+            string defName = null, string label = null, int fallbackId = 0)
+        {
+            int thingId = ship != null ? ship.thingIDNumber : fallbackId;
+            string dn   = ship?.def?.defName ?? defName;
+            string lbl  = ship != null ? ship.LabelCap : label;
+            var loc = FindLocationRecord(thingId, dn);
+            if (loc == null) { loc = new ShipLocationRecord(); shipLocations.Add(loc); }
+            loc.shipThingId   = thingId;
+            loc.shipDefName   = dn;
+            loc.shipLabel     = lbl;
+            loc.currentNodeId = string.IsNullOrEmpty(nodeId) ? GetDefaultHomeNodeId() : nodeId;
+        }
 
         public void AddDiagnostic(string category, string title, string message,
             string details, InterstellarDiagnosticSeverity severity)
@@ -1001,7 +887,7 @@ private void SetCurrentNodeForShip(Thing ship, string nodeId,
             {
                 var e = diagnostics[i];
                 if (e == null) continue;
-                if (!string.IsNullOrEmpty(category) && category != "Все" && e.category != category) continue;
+                if (!string.IsNullOrEmpty(category) && category != "IO_All".Translate() && e.category != category) continue;
                 yield return e;
             }
         }

@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<LanguageData>
+  <IO_GalaxiesTab>Galaxies</IO_GalaxiesTab>
+  <IO_GalaxySetupTitle>Configure galaxies, systems, and planet archives before the game starts.</IO_GalaxySetupTitle>
+  <IO_VanillaWorldFactions>World Factions (vanilla)</IO_VanillaWorldFactions>
+  <IO_OpenGalaxyEditor>Open galaxy editor</IO_OpenGalaxyEditor>
+  <IO_ReturnToWorld>Return to world</IO_ReturnToWorld>
+  <IO_GalaxySummary>{0} | stations: {1} | belts: {2} | planets: {3}</IO_GalaxySummary>
+  <IO_Disabled>off</IO_Disabled>
+  <IO_StartPlanetInGalaxy>Starting planet in galaxy: {0}</IO_StartPlanetInGalaxy>
+  <IO_None>none</IO_None>
+  <IO_GalaxyOverlayLocked>While the galaxy screen is open, the vanilla world-generation UI is fully locked.</IO_GalaxyOverlayLocked>
+  <IO_OpenFactionSettingsFailed>Failed to open the vanilla faction settings window.</IO_OpenFactionSettingsFailed>
+
+  <IO_OrbitalMap>Orbital map</IO_OrbitalMap>
+  <IO_OrbitalMapDesc>Open the transit map and choose a destination.</IO_OrbitalMapDesc>
+  <IO_TerminalNoPower>Terminal has no power.</IO_TerminalNoPower>
+  <IO_NoShipNearTerminal>No ship found near the terminal.</IO_NoShipNearTerminal>
+  <IO_BoardShip>Board ship: {0}</IO_BoardShip>
+  <IO_ShipGeneric>ship</IO_ShipGeneric>
+  <IO_BoardShipDesc>Go to the ship map while in transit.</IO_BoardShipDesc>
+  <IO_DebugShipBounds>DEBUG: Ship bounds</IO_DebugShipBounds>
+  <IO_DebugShipBoundsDesc>Check which ship the navigation terminal detects.</IO_DebugShipBoundsDesc>
+  <IO_ShipNotFound>Ship not found.</IO_ShipNotFound>
+  <IO_FoundShip>Ship found: {0} @ {1}</IO_FoundShip>
+  <IO_DebugDiagnostics>DEBUG: Diagnostics</IO_DebugDiagnostics>
+  <IO_DebugDiagnosticsDesc>Open the transit diagnostics window.</IO_DebugDiagnosticsDesc>
+
+  <IO_GalaxySettings>Galaxy settings</IO_GalaxySettings>
+  <IO_SaveSettings>Save settings</IO_SaveSettings>
+  <IO_GalaxyCount>Galaxy count:</IO_GalaxyCount>
+  <IO_Custom>Custom:</IO_Custom>
+  <IO_Apply>Apply</IO_Apply>
+  <IO_GalaxyName>Name:</IO_GalaxyName>
+  <IO_GalaxyDefaultName>Galaxy {0}</IO_GalaxyDefaultName>
+  <IO_Planets>Planets</IO_Planets>
+  <IO_GalaxyPlanets>Galaxy planets</IO_GalaxyPlanets>
+  <IO_PlanetDefaultName>Planet {0}</IO_PlanetDefaultName>
+  <IO_NameShort>Name:</IO_NameShort>
+  <IO_StartPlanet>Starting</IO_StartPlanet>
+  <IO_VanillaDefaults>Vanilla defaults</IO_VanillaDefaults>
+  <IO_Temperature>Temperature</IO_Temperature>
+  <IO_Rainfall>Rainfall</IO_Rainfall>
+  <IO_Population>Population</IO_Population>
+  <IO_Pollution>Pollution</IO_Pollution>
+
+  <IO_SolarSystem>Solar system</IO_SolarSystem>
+  <IO_ActiveGalaxy>Active galaxy: {0}</IO_ActiveGalaxy>
+  <IO_MainButtonDefMissing>MainButtonDef IO_SolarSystem was not found. Check Defs/MainButtons/IO_MainButtons.xml</IO_MainButtonDefMissing>
+
+  <IO_DiagnosticsLogTitle>Interstellar Odyssey diagnostics log</IO_DiagnosticsLogTitle>
+  <IO_DiagnosticsComponentMissing>World diagnostics component not found.</IO_DiagnosticsComponentMissing>
+  <IO_Category>Category:</IO_Category>
+  <IO_Clear>Clear</IO_Clear>
+  <IO_Copy>Copy</IO_Copy>
+  <IO_NoRecords>No records.</IO_NoRecords>
+  <IO_SeverityError>Error</IO_SeverityError>
+  <IO_SeverityWarning>Warning</IO_SeverityWarning>
+  <IO_SeverityInfo>Info</IO_SeverityInfo>
+  <IO_Record>Entry</IO_Record>
+  <IO_General>General</IO_General>
+  <IO_All>All</IO_All>
+
+  <IO_ShipLandingTitle>Ship landing</IO_ShipLandingTitle>
+  <IO_Target>Target: {0}</IO_Target>
+  <IO_SelectLandingPlaceDesc>Choose a landing site on the globe. After clicking a tile, a new map will be created and the ship will land there.</IO_SelectLandingPlaceDesc>
+  <IO_StandardLandingMode>Landing is always performed in one standard mode.</IO_StandardLandingMode>
+  <IO_LandingModeDisabled>Landing mode selection and landing on existing maps are disabled.</IO_LandingModeDisabled>
+  <IO_SelectLandingPlace>Choose landing site</IO_SelectLandingPlace>
+  <IO_AfterTileSelected>After selecting a tile, the window will close and the ship will begin the landing procedure.</IO_AfterTileSelected>
+  <IO_NoTravelRecord>No transit record found.</IO_NoTravelRecord>
+  <IO_PreparePlanetFailed>Failed to prepare the planet for landing.</IO_PreparePlanetFailed>
+  <IO_TileOccupied>This tile is occupied. Choose another one.</IO_TileOccupied>
+  <IO_LandingFailed>Landing failed.</IO_LandingFailed>
+
+  <IO_FlightMonitor>Flight monitor</IO_FlightMonitor>
+  <IO_Routes>Routes</IO_Routes>
+  <IO_ShipLabel>Ship</IO_ShipLabel>
+  <IO_RouteLabel>{0}: {1} → {2}</IO_RouteLabel>
+  <IO_IntergalacticTag>[intergalactic]</IO_IntergalacticTag>
+  <IO_Progress>Progress: {0}%</IO_Progress>
+  <IO_FlightNoEvents>Flight is proceeding without events</IO_FlightNoEvents>
+  <IO_Monitor>Monitor</IO_Monitor>
+  <IO_Landing>Landing</IO_Landing>
+  <IO_OnBoard>Board</IO_OnBoard>
+  <IO_EventLog>Event log</IO_EventLog>
+  <IO_NoEventsYet>All quiet so far. No events yet.</IO_NoEventsYet>
+  <IO_TransitEventLine>• {0} — {1}{2}</IO_TransitEventLine>
+  <IO_TransitEventImpact> [{0}]</IO_TransitEventImpact>
+
+  <IO_TravelTo>{0} [{1}]</IO_TravelTo>
+  <IO_IntergalacticTestJump>Intergalactic test jump: 1 day</IO_IntergalacticTestJump>
+  <IO_IntrasystemRoute>Intrasystem route</IO_IntrasystemRoute>
+  <IO_Fly>Fly</IO_Fly>
+  <IO_NoTravelNodesFound>No other travel nodes found.</IO_NoTravelNodesFound>
+
+  <IO_TravelAlreadyActive>The ship is already in transit.</IO_TravelAlreadyActive>
+  <IO_TravelAlreadyAtDestination>The ship is already at this destination.</IO_TravelAlreadyAtDestination>
+  <IO_PreflightDiagnostics>Pre-flight diagnostics</IO_PreflightDiagnostics>
+  <IO_ShipCompositionUnknown>Failed to determine ship composition.</IO_ShipCompositionUnknown>
+  <IO_InsufficientThrust>Insufficient thrust.</IO_InsufficientThrust>
+  <IO_InsufficientFuel>Not enough fuel. Needed: {0}, available: {1}.</IO_InsufficientFuel>
+  <IO_PlanetMapsSaved>Planet maps for “{0}” were saved ({1} total).</IO_PlanetMapsSaved>
+  <IO_ShipCaptureFailed>Failed to capture the ship.</IO_ShipCaptureFailed>
+  <IO_VoidMapNotCreated>Void map was not created; transit continues.</IO_VoidMapNotCreated>
+  <IO_IntergalacticTravelStarted>Intergalactic transit: {0} → {1}. Time: 1 day.</IO_IntergalacticTravelStarted>
+  <IO_TravelStarted>Transit: {0} → {1}. Fuel: {2}</IO_TravelStarted>
+  <IO_TravelStartedTitle>Transit started</IO_TravelStartedTitle>
+  <IO_TravelAbortedRollback>Transit aborted. Rollback completed.</IO_TravelAbortedRollback>
+  <IO_TargetMapNotSpecified>Target map is not specified.</IO_TargetMapNotSpecified>
+  <IO_LandingModeUnavailable>This landing mode is unavailable.</IO_LandingModeUnavailable>
+  <IO_LandingCancelledCaptureFailed>Landing canceled: failed to capture the ship from the void map.</IO_LandingCancelledCaptureFailed>
+  <IO_LandingFailedTitle>Landing failed</IO_LandingFailedTitle>
+  <IO_TryRestoreShipReturnedFalse>TryRestoreShip returned false.</IO_TryRestoreShipReturnedFalse>
+  <IO_LandingModeDetail>Mode: {0}</IO_LandingModeDetail>
+  <IO_LandingCompletedTitle>Landing complete</IO_LandingCompletedTitle>
+  <IO_LandingCompletedAt>{0} near {1}</IO_LandingCompletedAt>
+  <IO_ShipLandedNear>Ship {0} landed near {1}.</IO_ShipLandedNear>
+  <IO_SelectTile>Choose tile</IO_SelectTile>
+  <IO_WorldRegeneratedTitle>World regenerated</IO_WorldRegeneratedTitle>
+  <IO_NewPlanet>New planet: {0}</IO_NewPlanet>
+  <IO_CreateMapAtTileFailed>Failed to create a map on the selected tile.</IO_CreateMapAtTileFailed>
+  <IO_ShipLandedOn>Ship {0} landed on “{1}”.</IO_ShipLandedOn>
+  <IO_LandingZone>Landing zone</IO_LandingZone>
+  <IO_Unknown>Unknown</IO_Unknown>
+  <IO_LandingModeEmergency>emergency</IO_LandingModeEmergency>
+  <IO_LandingModeOrbitalDrop>orbital drop</IO_LandingModeOrbitalDrop>
+  <IO_LandingModeUnpreparedSurface>unprepared surface</IO_LandingModeUnpreparedSurface>
+  <IO_LandingModeStationDocking>docking</IO_LandingModeStationDocking>
+  <IO_LandingModePrecise>precise</IO_LandingModePrecise>
+  <IO_OrbitDepartureTitle>Orbital departure</IO_OrbitDepartureTitle>
+  <IO_ShipReachedOrbit>Ship reached orbit: {0}. Mode: {1}.</IO_ShipReachedOrbit>
+</LanguageData>

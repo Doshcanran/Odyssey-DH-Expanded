@@ -7,6 +7,10 @@ namespace InterstellarOdyssey
 {
     public class Building_ShipNavigationConsole : Building
     {
+        private static readonly Texture2D LaunchIcon =
+            ContentFinder<Texture2D>.Get("UI/LaunchShip", false) ?? TexButton.Play;
+
+
         private CompPowerTrader cachedPowerComp;
 
         public CompPowerTrader PowerComp
@@ -26,21 +30,21 @@ namespace InterstellarOdyssey
 
             yield return new Command_Action
             {
-                defaultLabel = "Орбитальная карта",
-                defaultDesc = "Открыть карту перелёта и выбрать пункт назначения.",
-                icon = BaseContent.BadTex,
+                defaultLabel = "IO_OrbitalMap".Translate(),
+                defaultDesc = "IO_OrbitalMapDesc".Translate(),
+                icon = LaunchIcon,
                 action = delegate
                 {
                     if (PowerComp != null && !PowerComp.PowerOn)
                     {
-                        Messages.Message("Терминал не запитан.", MessageTypeDefOf.RejectInput, false);
+                        Messages.Message("IO_TerminalNoPower".Translate(), MessageTypeDefOf.RejectInput, false);
                         return;
                     }
 
                     Thing ship = ShipResolver.FindBestAvailableShip(this);
                     if (ship == null)
                     {
-                        Messages.Message("Не найден корабль рядом с терминалом.", MessageTypeDefOf.RejectInput, false);
+                        Messages.Message("IO_NoShipNearTerminal".Translate(), MessageTypeDefOf.RejectInput, false);
                         return;
                     }
 
@@ -64,9 +68,8 @@ namespace InterstellarOdyssey
                     ShipTransitRecord captured = tr;
                     yield return new Command_Action
                     {
-                        defaultLabel = "На борт: " + (tr.shipLabel ?? "корабль"),
-                        defaultDesc = "Перейти на карту корабля в полёте.",
-                        icon = BaseContent.BadTex,
+                        defaultLabel = "IO_BoardShip".Translate(tr.shipLabel ?? "IO_ShipGeneric".Translate()),
+                        defaultDesc = "IO_BoardShipDesc".Translate(),
                         action = delegate
                         {
                             Current.Game.CurrentMap = VoidMapUtility.GetVoidMap(captured.voidMapTile) ?? Current.Game.CurrentMap;
@@ -79,20 +82,19 @@ namespace InterstellarOdyssey
             {
                 yield return new Command_Action
                 {
-                    defaultLabel = "DEBUG: Границы корабля",
-                    defaultDesc = "Проверить, какой корабль видит навигационный терминал.",
-                    icon = BaseContent.BadTex,
+                    defaultLabel = "IO_DebugShipBounds".Translate(),
+                    defaultDesc = "IO_DebugShipBoundsDesc".Translate(),
                     action = delegate
                     {
                         Thing ship = ShipResolver.FindBestAvailableShip(this);
                         if (ship == null)
                         {
-                            Messages.Message("Корабль не найден.", MessageTypeDefOf.RejectInput, false);
+                            Messages.Message("IO_ShipNotFound".Translate(), MessageTypeDefOf.RejectInput, false);
                             return;
                         }
 
                         Messages.Message(
-                            "Найден корабль: " + ship.LabelCap + " @ " + ship.Position,
+                            "IO_FoundShip".Translate(ship.LabelCap, ship.Position),
                             MessageTypeDefOf.TaskCompletion,
                             false);
                     }
@@ -100,9 +102,8 @@ namespace InterstellarOdyssey
 
                 yield return new Command_Action
                 {
-                    defaultLabel = "DEBUG: Диагностика",
-                    defaultDesc = "Открыть окно диагностики перелёта.",
-                    icon = BaseContent.BadTex,
+                    defaultLabel = "IO_DebugDiagnostics".Translate(),
+                    defaultDesc = "IO_DebugDiagnosticsDesc".Translate(),
                     action = delegate
                     {
                         Find.WindowStack.Add(new Window_InterstellarDiagnostics());

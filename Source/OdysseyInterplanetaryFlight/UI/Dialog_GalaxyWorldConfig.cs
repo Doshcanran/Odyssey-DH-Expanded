@@ -13,7 +13,7 @@ namespace InterstellarOdyssey
         private readonly Dictionary<string, string> textBuffers = new Dictionary<string, string>();
 
         private const float GalaxyBlockPadding = 8f;
-        private const float PlanetRowHeight = 196f;
+        private const float PlanetRowHeight = 150f;
         private const float PlanetRowSpacing = 8f;
         private const float PlanetsSectionPadding = 10f;
         private const int MaxPlanetsToDraw = 6;
@@ -29,7 +29,7 @@ namespace InterstellarOdyssey
             doCloseButton = true;
             doCloseX = true;
             closeOnClickedOutside = false;
-            optionalTitle = "Настройки галактик";
+            optionalTitle = "IO_GalaxySettings".Translate();
         }
 
         public override void DoWindowContents(Rect inRect)
@@ -59,12 +59,8 @@ namespace InterstellarOdyssey
 
             Widgets.EndScrollView();
 
-            Rect actionsRect = new Rect(inRect.x, inRect.yMax - 70f, inRect.width, 30f);
-            if (Widgets.ButtonText(new Rect(actionsRect.x, actionsRect.y, 250f, 30f), "Фракции мира (ваниль)"))
-                OpenVanillaFactionSettings();
-
             Rect bottomRect = new Rect(inRect.x, inRect.yMax - 34f, inRect.width, 30f);
-            if (Widgets.ButtonText(new Rect(bottomRect.xMax - 220f, bottomRect.y, 220f, 30f), "Сохранить настройки"))
+            if (Widgets.ButtonText(new Rect(bottomRect.xMax - 220f, bottomRect.y, 220f, 30f), "IO_SaveSettings".Translate()))
             {
                 GalaxyConfigUtility.EnsureConsistency(config);
                 InterstellarOdysseyMod.PendingGalaxyConfig = config;
@@ -82,10 +78,8 @@ namespace InterstellarOdyssey
             return GalaxyBlockPadding * 2f
                 + 24f // label field
                 + 12f
-                + 24f + 8f // stations
-                + 24f + 8f // belts
                 + 24f + 18f // planets
-                + 24f + 8f // "Планеты галактики"
+                + 24f + 8f // "IO_GalaxyPlanets".Translate()
                 + PlanetsSectionPadding * 2f
                 + planetsContentHeight;
         }
@@ -94,7 +88,7 @@ namespace InterstellarOdyssey
         {
             Widgets.DrawMenuSection(rect);
             Rect inner = rect.ContractedBy(6f);
-            Widgets.Label(new Rect(inner.x, inner.y + 6f, 180f, 24f), "Количество галактик:");
+            Widgets.Label(new Rect(inner.x, inner.y + 6f, 180f, 24f), "IO_GalaxyCount".Translate());
 
             float x = inner.x + 190f;
             DrawCountButton(new Rect(x, inner.y + 2f, 60f, 28f), 1, ref config.selectedGalaxyCount);
@@ -106,10 +100,10 @@ namespace InterstellarOdyssey
 
             string key = "galaxy_count";
             string buffer = GetBuffer(key, config.selectedGalaxyCount.ToString());
-            Widgets.Label(new Rect(x, inner.y + 6f, 70f, 24f), "Своё:");
+            Widgets.Label(new Rect(x, inner.y + 6f, 70f, 24f), "IO_Custom".Translate());
             buffer = Widgets.TextField(new Rect(x + 55f, inner.y + 2f, 80f, 28f), buffer);
             intBuffers[key] = buffer;
-            if (Widgets.ButtonText(new Rect(x + 142f, inner.y + 2f, 72f, 28f), "Принять"))
+            if (Widgets.ButtonText(new Rect(x + 142f, inner.y + 2f, 72f, 28f), "IO_Apply".Translate()))
             {
                 if (int.TryParse(buffer, out int custom))
                     config.selectedGalaxyCount = Mathf.Clamp(custom, 1, 20);
@@ -130,28 +124,25 @@ namespace InterstellarOdyssey
             Rect inner = rect.ContractedBy(GalaxyBlockPadding);
 
             string labelKey = "galaxy_label_" + index;
-            string labelBuffer = GetTextBuffer(labelKey, galaxy.label ?? ("Галактика " + (index + 1)));
-            Widgets.Label(new Rect(inner.x, inner.y, 120f, 24f), "Название:");
+            string labelBuffer = GetTextBuffer(labelKey, galaxy.label ?? "IO_GalaxyDefaultName".Translate(index + 1));
+            Widgets.Label(new Rect(inner.x, inner.y, 120f, 24f), "IO_GalaxyName".Translate());
             labelBuffer = Widgets.TextField(new Rect(inner.x + 90f, inner.y, 260f, 24f), labelBuffer);
             textBuffers[labelKey] = labelBuffer;
             galaxy.label = labelBuffer;
 
             float y = inner.y + 36f;
-            Widgets.CheckboxLabeled(new Rect(inner.x, y, 220f, 24f), "Орбитальные станции", ref galaxy.hasStations);
-            DrawCountOption(inner.x + 250f, y, "stationCount_" + index, ref galaxy.stationCount);
-            y += 32f;
+            galaxy.hasStations = false;
+            galaxy.hasAsteroidBelts = false;
+            galaxy.stationCount = 0;
+            galaxy.beltCount = 0;
 
-            Widgets.CheckboxLabeled(new Rect(inner.x, y, 220f, 24f), "Пояса астероидов", ref galaxy.hasAsteroidBelts);
-            DrawCountOption(inner.x + 250f, y, "beltCount_" + index, ref galaxy.beltCount);
-            y += 32f;
-
-            Widgets.CheckboxLabeled(new Rect(inner.x, y, 220f, 24f), "Планеты", ref galaxy.hasPlanets);
+            Widgets.CheckboxLabeled(new Rect(inner.x, y, 220f, 24f), "IO_Planets".Translate(), ref galaxy.hasPlanets);
             DrawCountOption(inner.x + 250f, y, "planetCount_" + index, ref galaxy.planetCount);
             y += 42f;
 
             GalaxyConfigUtility.EnsureConsistency(config);
 
-            Widgets.Label(new Rect(inner.x, y, inner.width, 24f), "Планеты галактики");
+            Widgets.Label(new Rect(inner.x, y, inner.width, 24f), "IO_GalaxyPlanets".Translate());
             y += 28f;
 
             int maxPlanetsToDraw = Mathf.Min(galaxy.planets.Count, MaxPlanetsToDraw);
@@ -189,7 +180,7 @@ namespace InterstellarOdyssey
             string buffer = GetBuffer(key, value.ToString());
             buffer = Widgets.TextField(new Rect(x + 178f, y, 64f, 24f), buffer);
             intBuffers[key] = buffer;
-            if (Widgets.ButtonText(new Rect(x + 246f, y, 70f, 24f), "Своё"))
+            if (Widgets.ButtonText(new Rect(x + 246f, y, 70f, 24f), "IO_Custom".Translate()))
             {
                 if (int.TryParse(buffer, out int custom))
                     value = Mathf.Clamp(custom, 1, 20);
@@ -203,14 +194,14 @@ namespace InterstellarOdyssey
             Rect inner = rect.ContractedBy(10f);
 
             string key = "planet_label_" + galaxyIndex + "_" + planetIndex;
-            string labelBuffer = GetTextBuffer(key, planet.label ?? ("Планета " + (planetIndex + 1)));
-            Widgets.Label(new Rect(inner.x, inner.y, 52f, 24f), "Имя:");
+            string labelBuffer = GetTextBuffer(key, planet.label ?? "IO_PlanetDefaultName".Translate(planetIndex + 1));
+            Widgets.Label(new Rect(inner.x, inner.y, 52f, 24f), "IO_NameShort".Translate());
             labelBuffer = Widgets.TextField(new Rect(inner.x + 46f, inner.y, 230f, 24f), labelBuffer);
             textBuffers[key] = labelBuffer;
             planet.label = labelBuffer;
 
             bool start = planet.startPlanet;
-            Widgets.CheckboxLabeled(new Rect(inner.x + 320f, inner.y, 140f, 24f), "Стартовая", ref start);
+            Widgets.CheckboxLabeled(new Rect(inner.x + 320f, inner.y, 140f, 24f), "IO_StartPlanet".Translate(), ref start);
             if (start != planet.startPlanet && start)
             {
                 foreach (GalaxyDefinition g in config.galaxies)
@@ -220,27 +211,23 @@ namespace InterstellarOdyssey
             planet.startPlanet = start;
 
             bool defaults = planet.useVanillaDefaults;
-            Widgets.CheckboxLabeled(new Rect(inner.x + 500f, inner.y, 210f, 24f), "Ванильные дефолты", ref defaults);
+            Widgets.CheckboxLabeled(new Rect(inner.x + 500f, inner.y, 210f, 24f), "IO_VanillaDefaults".Translate(), ref defaults);
             planet.useVanillaDefaults = defaults;
 
             float y = inner.y + 38f;
             float leftWidth = (inner.width - 32f) / 2f;
             float rightX = inner.x + leftWidth + 32f;
 
-            DrawSlider(new Rect(inner.x, y, leftWidth, 24f), "Температура", ref planet.overallTemperature, 0f, 2f);
-            DrawSlider(new Rect(rightX, y, leftWidth, 24f), "Осадки", ref planet.overallRainfall, 0f, 2f);
+            DrawSlider(new Rect(inner.x, y, leftWidth, 24f), "IO_Temperature".Translate(), ref planet.overallTemperature, 0f, 2f);
+            DrawSlider(new Rect(rightX, y, leftWidth, 24f), "IO_Rainfall".Translate(), ref planet.overallRainfall, 0f, 2f);
             y += 38f;
 
-            DrawSlider(new Rect(inner.x, y, leftWidth, 24f), "Население", ref planet.overallPopulation, 0f, 2f);
-            DrawWorldSizeSelector(new Rect(rightX, y, leftWidth, 24f), planet);
-            y += 64f;
+            DrawSlider(new Rect(inner.x, y, leftWidth, 24f), "IO_Population".Translate(), ref planet.overallPopulation, 0f, 2f);
+            DrawSlider(new Rect(rightX, y, leftWidth, 24f), "IO_Coverage".Translate(), ref planet.coverage, 0.05f, 1f);
+            y += 38f;
 
-            DrawSlider(new Rect(inner.x, y, leftWidth, 24f), "Загрязнение", ref planet.pollution, 0f, 1f);
+            DrawSlider(new Rect(inner.x, y, leftWidth, 24f), "IO_Pollution".Translate(), ref planet.pollution, 0f, 1f);
             DrawSeedField(new Rect(rightX, y, 180f, 24f), planet, galaxyIndex, planetIndex);
-            y += 38f;
-
-            if (Widgets.ButtonText(new Rect(inner.x, y, 250f, 28f), "Открыть список фракций (ваниль)"))
-                OpenVanillaFactionSettings();
         }
 
         private void DrawSlider(Rect rect, string label, ref float value, float min, float max)
@@ -259,47 +246,6 @@ namespace InterstellarOdyssey
             intBuffers[key] = buffer;
             if (int.TryParse(buffer, out int seedOffset))
                 planet.seedOffset = seedOffset;
-        }
-
-        private void DrawWorldSizeSelector(Rect rect, PlanetDefinition_IO planet)
-        {
-            Widgets.Label(new Rect(rect.x, rect.y, 170f, rect.height), "Размер мира: " + DescribeCoverage(planet.coverage));
-
-            float buttonY = rect.y + rect.height + 2f;
-            Rect smallRect = new Rect(rect.x, buttonY, 56f, 24f);
-            Rect mediumRect = new Rect(rect.x + 60f, buttonY, 56f, 24f);
-            Rect largeRect = new Rect(rect.x + 120f, buttonY, 56f, 24f);
-            Rect hugeRect = new Rect(rect.x + 180f, buttonY, 56f, 24f);
-
-            if (Widgets.ButtonText(smallRect, Mathf.Abs(planet.coverage - 0.30f) < 0.01f ? "●30%" : "○30%"))
-                planet.coverage = 0.30f;
-            if (Widgets.ButtonText(mediumRect, Mathf.Abs(planet.coverage - 0.50f) < 0.01f ? "●50%" : "○50%"))
-                planet.coverage = 0.50f;
-            if (Widgets.ButtonText(largeRect, Mathf.Abs(planet.coverage - 0.75f) < 0.01f ? "●75%" : "○75%"))
-                planet.coverage = 0.75f;
-            if (Widgets.ButtonText(hugeRect, Mathf.Abs(planet.coverage - 1.00f) < 0.01f ? "●100%" : "○100%"))
-                planet.coverage = 1.00f;
-        }
-
-        private string DescribeCoverage(float coverage)
-        {
-            if (coverage <= 0.31f) return "малый";
-            if (coverage <= 0.55f) return "средний";
-            if (coverage <= 0.80f) return "большой";
-            return "максимальный";
-        }
-
-        private void OpenVanillaFactionSettings()
-        {
-            try
-            {
-                Find.WindowStack.Add(new Dialog_AdvancedGameConfig());
-            }
-            catch (System.Exception ex)
-            {
-                Log.Error("[InterstellarOdyssey] Не удалось открыть ванильные настройки фракций: " + ex);
-                Messages.Message("Не удалось открыть ванильное окно настройки фракций.", MessageTypeDefOf.RejectInput, false);
-            }
         }
 
         private string GetBuffer(string key, string fallback)

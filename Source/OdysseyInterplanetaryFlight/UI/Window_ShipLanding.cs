@@ -39,17 +39,17 @@ namespace InterstellarOdyssey
             string targetLabel = data.ResolveNodeLabel(dest);
 
             Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(inRect.x, inRect.y, inRect.width, 32f), "Посадка корабля");
+            Widgets.Label(new Rect(inRect.x, inRect.y, inRect.width, 32f), "IO_ShipLandingTitle".Translate());
 
             Text.Font = GameFont.Small;
             Widgets.Label(
                 new Rect(inRect.x, inRect.y + 38f, inRect.width, 22f),
-                "Цель: " + targetLabel);
+                "IO_Target".Translate(targetLabel));
 
             Rect descriptionRect = new Rect(inRect.x, inRect.y + 64f, inRect.width, 52f);
             Widgets.Label(
                 descriptionRect,
-                "Выберите место посадки на глобусе. После клика по тайлу будет создана новая карта, и корабль сядет туда.");
+                "IO_SelectLandingPlaceDesc".Translate());
 
             Rect box = new Rect(inRect.x, inRect.y + 122f, inRect.width, 96f);
             Widgets.DrawMenuSection(box);
@@ -57,21 +57,21 @@ namespace InterstellarOdyssey
             Rect inner = box.ContractedBy(10f);
             Widgets.Label(
                 new Rect(inner.x, inner.y, inner.width, 22f),
-                "Посадка всегда выполняется в одном стандартном режиме.");
+                "IO_StandardLandingMode".Translate());
 
             Widgets.Label(
                 new Rect(inner.x, inner.y + 28f, inner.width, 42f),
-                "Выбор типа посадки и посадка на существующие карты отключены.");
+                "IO_LandingModeDisabled".Translate());
 
             Rect buttonRect = new Rect(inRect.center.x - 180f, inRect.y + 238f, 360f, 38f);
-            if (Widgets.ButtonText(buttonRect, "Выбрать место посадки"))
+            if (Widgets.ButtonText(buttonRect, "IO_SelectLandingPlace".Translate()))
             {
                 BeginTileSelection();
             }
 
             Rect noteRect = new Rect(inRect.x + 10f, inRect.y + 288f, inRect.width - 20f, 40f);
             Text.Anchor = TextAnchor.MiddleCenter;
-            Widgets.Label(noteRect, "После выбора тайла окно закроется, и корабль начнёт процедуру посадки.");
+            Widgets.Label(noteRect, "IO_AfterTileSelected".Translate());
             Text.Anchor = TextAnchor.UpperLeft;
         }
 
@@ -82,14 +82,14 @@ namespace InterstellarOdyssey
 
             if (capturedTravel == null)
             {
-                Messages.Message("Нет записи о перелёте.", MessageTypeDefOf.RejectInput, false);
+                Messages.Message("IO_NoTravelRecord".Translate(), MessageTypeDefOf.RejectInput, false);
                 return;
             }
 
             bool worldReady = capturedData.PrepareNewPlanetWorld(capturedTravel);
             if (!worldReady)
             {
-                Messages.Message("Не удалось подготовить планету для посадки.", MessageTypeDefOf.RejectInput, false);
+                Messages.Message("IO_PreparePlanetFailed".Translate(), MessageTypeDefOf.RejectInput, false);
                 return;
             }
 
@@ -107,7 +107,7 @@ namespace InterstellarOdyssey
 
                     if (Find.WorldObjects.AnyWorldObjectAt(tile))
                     {
-                        Messages.Message("Этот тайл занят. Выберите другой.", MessageTypeDefOf.RejectInput, false);
+                        Messages.Message("IO_TileOccupied".Translate(), MessageTypeDefOf.RejectInput, false);
                         return false;
                     }
 
@@ -117,7 +117,7 @@ namespace InterstellarOdyssey
                         ShipLandingMode.Precise);
 
                     if (!landed)
-                        Messages.Message("Посадка не удалась.", MessageTypeDefOf.RejectInput, false);
+                        Messages.Message("IO_LandingFailed".Translate(), MessageTypeDefOf.RejectInput, false);
 
                     return landed;
                 },

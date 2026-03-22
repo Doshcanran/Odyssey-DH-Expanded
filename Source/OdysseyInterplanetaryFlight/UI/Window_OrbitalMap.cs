@@ -26,7 +26,7 @@ namespace InterstellarOdyssey
             absorbInputAroundWindow = true;
             closeOnAccept = false;
             draggable = true;
-            optionalTitle = "Орбитальная карта";
+            optionalTitle = "IO_RefreshOrbitalMap".Translate();
             Data.GenerateIfNeeded();
 
             OrbitalNode currentNode = Data.GetCurrentNodeForShip(ship);
@@ -44,14 +44,14 @@ namespace InterstellarOdyssey
         public override void DoWindowContents(Rect inRect)
         {
             Rect refreshButtonRect = new Rect(inRect.xMax - 160f, inRect.y + 4f, 160f, 32f);
-            if (Widgets.ButtonText(refreshButtonRect, "Обновить проверку"))
+            if (Widgets.ButtonText(refreshButtonRect, "IO_RefreshCheck".Translate()))
                 RefreshValidationReport();
 
             Rect galaxyButtonsRect = new Rect(inRect.x, inRect.y + 40f, inRect.width - 180f, 80f);
             float galaxyButtonsBottom = GalaxyUiUtility.DrawGalaxyTabs(galaxyButtonsRect, Data);
 
             OrbitalNode current = Data.GetCurrentNodeForShip(ship);
-            string infoText = "Текущая цель: " + Data.ResolveNodeLabel(current) + " | Галактика: " + (Data.GetGalaxyById(Data.selectedGalaxyId)?.label ?? Data.selectedGalaxyId);
+            string infoText = "IO_CurrentTarget".Translate(Data.ResolveNodeLabel(current), Data.GetGalaxyById(Data.selectedGalaxyId)?.label ?? Data.selectedGalaxyId);
             float infoHeight = Text.CalcHeight(infoText, inRect.width);
             Rect infoRect = new Rect(inRect.x, galaxyButtonsBottom + 8f, inRect.width, infoHeight);
             Widgets.Label(infoRect, infoText);
@@ -72,7 +72,7 @@ namespace InterstellarOdyssey
             if (Data.IsShipTravelling(ship))
             {
                 Rect statusRect = new Rect(inRect.x, contentRect.yMax + 6f, inRect.width, 24f);
-                Widgets.Label(statusRect, "Этот корабль уже находится в перелёте.");
+                Widgets.Label(statusRect, "IO_ShipAlreadyInTransit".Translate());
             }
         }
 
@@ -152,11 +152,11 @@ namespace InterstellarOdyssey
             Widgets.DrawMenuSection(rect);
             Rect inner = rect.ContractedBy(10f);
 
-            Widgets.Label(new Rect(inner.x, inner.y, inner.width, 24f), "Проверка корабля");
+            Widgets.Label(new Rect(inner.x, inner.y, inner.width, 24f), "IO_ShipCheck".Translate());
 
             if (validationReport == null)
             {
-                Widgets.Label(new Rect(inner.x, inner.y + 28f, inner.width, 24f), "Нет данных.");
+                Widgets.Label(new Rect(inner.x, inner.y + 28f, inner.width, 24f), "IO_NoData".Translate());
                 return;
             }
 
@@ -174,7 +174,7 @@ namespace InterstellarOdyssey
         {
             Widgets.DrawMenuSection(rect);
             Rect inner = rect.ContractedBy(8f);
-            Widgets.Label(new Rect(inner.x, inner.y, inner.width, 24f), "Доступные маршруты");
+            Widgets.Label(new Rect(inner.x, inner.y, inner.width, 24f), "IO_AvailableRoutes".Translate());
 
             string currentNodeId = Data.GetCurrentNodeIdForShip(ship);
             Log.Message("[IO:OrbitalMap] DrawDestinationList: ship=" + (ship?.LabelCap ?? "null")
@@ -195,13 +195,13 @@ namespace InterstellarOdyssey
                 Widgets.DrawBoxSolid(row, new Color(1f, 1f, 1f, 0.04f));
 
                 bool intergalactic = current != null && !string.Equals(current.galaxyId, node.galaxyId);
-                string routeLabel = Data.ResolveNodeLabel(node) + " [" + (Data.GetGalaxyById(node.galaxyId)?.label ?? node.galaxyId) + "]";
-                string travelLabel = intergalactic ? "Межгалактический тестовый прыжок: 1 день" : "Внутрисистемный маршрут";
+                string routeLabel = "IO_TravelTo".Translate(Data.ResolveNodeLabel(node), Data.GetGalaxyById(node.galaxyId)?.label ?? node.galaxyId);
+                string travelLabel = intergalactic ? "IO_IntergalacticTestJump".Translate() : "IO_IntrasystemRoute".Translate();
 
                 Widgets.Label(new Rect(row.x + 8f, row.y + 8f, row.width - 150f, 22f), routeLabel);
                 Widgets.Label(new Rect(row.x + 8f, row.y + 34f, row.width - 150f, 20f), travelLabel);
 
-                if (Widgets.ButtonText(new Rect(row.width - 130f, row.y + 22f, 120f, 28f), "Лететь"))
+                if (Widgets.ButtonText(new Rect(row.width - 130f, row.y + 22f, 120f, 28f), "IO_Fly".Translate()))
                 {
                     if (Data.StartTravel(ship, node))
                         Close();
@@ -211,7 +211,7 @@ namespace InterstellarOdyssey
             }
 
             if (destinations.Count == 0)
-                Widgets.Label(new Rect(0f, 0f, viewRect.width, 24f), "Других узлов для перелёта не найдено.");
+                Widgets.Label(new Rect(0f, 0f, viewRect.width, 24f), "IO_NoTravelNodesFound".Translate());
 
             Widgets.EndScrollView();
         }
