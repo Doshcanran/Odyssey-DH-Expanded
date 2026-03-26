@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Defs>
+
+  <!-- Аналог data-driven planet defs из Layered-Atmosphere-Orbit.
+       Код лишь выбирает один из шаблонов и строит PlanetDefinition_IO. -->
+
+  <InterstellarPlanetTemplateDef>
+    <defName>IO_TemperateGardenPlanet</defName>
+    <label>temperate garden world</label>
+    <namePrefix>Aurea</namePrefix>
+    <overallRainfall>1.05</overallRainfall>
+    <overallTemperature>1.0</overallTemperature>
+    <overallPopulation>0.85</overallPopulation>
+    <pollution>0.02</pollution>
+    <coverage>0.30</coverage>
+    <selectionWeight>1.2</selectionWeight>
+    <allowedAsStartPlanet>true</allowedAsStartPlanet>
+  </InterstellarPlanetTemplateDef>
+
+  <InterstellarPlanetTemplateDef>
+    <defName>IO_DryRockPlanet</defName>
+    <label>dry rocky world</label>
+    <namePrefix>Vesta</namePrefix>
+    <overallRainfall>0.52</overallRainfall>
+    <overallTemperature>1.26</overallTemperature>
+    <overallPopulation>0.42</overallPopulation>
+    <pollution>0.04</pollution>
+    <coverage>0.22</coverage>
+    <selectionWeight>1.0</selectionWeight>
+    <allowedAsStartPlanet>true</allowedAsStartPlanet>
+  </InterstellarPlanetTemplateDef>
+
+  <InterstellarPlanetTemplateDef>
+    <defName>IO_ColdIcePlanet</defName>
+    <label>cold ice world</label>
+    <namePrefix>Nival</namePrefix>
+    <overallRainfall>1.16</overallRainfall>
+    <overallTemperature>0.56</overallTemperature>
+    <overallPopulation>0.26</overallPopulation>
+    <pollution>0.00</pollution>
+    <coverage>0.27</coverage>
+    <selectionWeight>0.95</selectionWeight>
+    <allowedAsStartPlanet>true</allowedAsStartPlanet>
+  </InterstellarPlanetTemplateDef>
+
+  <InterstellarPlanetTemplateDef>
+    <defName>IO_ToxicIndustrialPlanet</defName>
+    <label>toxic industrial world</label>
+    <namePrefix>Khiron</namePrefix>
+    <overallRainfall>0.78</overallRainfall>
+    <overallTemperature>1.12</overallTemperature>
+    <overallPopulation>1.18</overallPopulation>
+    <pollution>0.34</pollution>
+    <coverage>0.24</coverage>
+    <selectionWeight>0.60</selectionWeight>
+    <allowedAsStartPlanet>false</allowedAsStartPlanet>
+  </InterstellarPlanetTemplateDef>
+
+</Defs>

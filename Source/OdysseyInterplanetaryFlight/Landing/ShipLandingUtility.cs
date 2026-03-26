@@ -109,6 +109,215 @@ namespace InterstellarOdyssey
             }
         }
 
+
+
+
+public static bool CanLandPreciselyAt(ShipSnapshot snapshot, Map map, IntVec3 targetCenter, out string reason)
+{
+    reason = null;
+
+    if (snapshot == null || map == null)
+    {
+        reason = "Нет данных для посадки.";
+        return false;
+    }
+
+    if (!targetCenter.IsValid || !targetCenter.InBounds(map))
+    {
+        reason = "Клетка вне границ карты.";
+        return false;
+    }
+
+    foreach (IntVec3 cell in EnumerateOccupiedCells(snapshot, targetCenter))
+    {
+        if (!cell.InBounds(map))
+        {
+            reason = "Корабль не помещается в границы карты.";
+            return false;
+        }
+
+        if (!cell.Standable(map))
+        {
+            reason = "Под кораблём есть непроходимая поверхность.";
+            return false;
+        }
+
+        Thing edifice = cell.GetEdifice(map);
+        if (edifice != null && edifice.def != null)
+        {
+            if ((edifice.def.category == ThingCategory.Building && !edifice.def.destroyable)
+                || edifice.def.mineable
+                || edifice.def.building?.isNaturalRock == true)
+            {
+                reason = "Здесь мешает скала или неразрушаемый объект.";
+                return false;
+            }
+        }
+
+        List<Thing> things = cell.GetThingList(map);
+        for (int i = 0; i < things.Count; i++)
+        {
+            Thing thing = things[i];
+            if (thing == null || thing.Destroyed)
+                continue;
+
+            if (thing.def == null)
+                continue;
+
+            if (thing.def.category == ThingCategory.Pawn || thing.def.category == ThingCategory.Filth)
+                continue;
+
+            if (thing.def.category == ThingCategory.Building && !thing.def.destroyable)
+            {
+                reason = "Зона посадки занята постройкой.";
+                return false;
+            }
+
+            if (thing.def.passability == Traversability.Impassable)
+            {
+                reason = "Зона посадки занята непроходимым объектом.";
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+
+
+
+public static List<IntVec3> GetOccupiedCellsAt(ShipSnapshot snapshot, IntVec3 targetCenter)
+{
+    List<IntVec3> result = new List<IntVec3>();
+    if (snapshot == null)
+        return result;
+
+    HashSet<IntVec3> unique = new HashSet<IntVec3>();
+    foreach (IntVec3 cell in EnumerateOccupiedCells(snapshot, targetCenter))
+        unique.Add(cell);
+
+    result.AddRange(unique);
+    return result;
+}
+
+public static void DrawGhostPreview(ShipSnapshot snapshot, IntVec3 targetCenter, bool valid)
+{
+    if (snapshot == null)
+        return;
+
+    Color footprintColor = valid
+        ? new Color(0.45f, 1.00f, 0.45f, 0.90f)
+        : new Color(1.00f, 0.45f, 0.45f, 0.90f);
+
+    Color buildingColor = valid
+        ? new Color(0.70f, 1.00f, 0.70f, 0.90f)
+        : new Color(1.00f, 0.65f, 0.65f, 0.90f);
+
+    List<IntVec3> footprint = GetOccupiedCellsAt(snapshot, targetCenter);
+    if (footprint.Count > 0)
+        GenDraw.DrawFieldEdges(footprint, footprintColor);
+
+    if (snapshot.buildings == null)
+        return;
+
+    for (int i = 0; i < snapshot.buildings.Count; i++)
+    {
+        ShipThingSnapshot entry = snapshot.buildings[i];
+        if (entry == null || entry.thing == null || entry.thing.def == null)
+            continue;
+
+        List<IntVec3> buildingCells = new List<IntVec3>();
+        foreach (IntVec3 occupied in GenAdj.OccupiedRect(targetCenter + entry.offset, entry.rotation, entry.thing.def.Size).Cells)
+            buildingCells.Add(occupied);
+
+        if (buildingCells.Count > 0)
+            GenDraw.DrawFieldEdges(buildingCells, buildingColor);
+    }
+}
+public static CellRect GetSnapshotFootprint(ShipSnapshot snapshot)
+{
+    if (snapshot == null)
+        return CellRect.Empty;
+
+    bool hasAny = false;
+    int minX = int.MaxValue;
+    int minZ = int.MaxValue;
+    int maxX = int.MinValue;
+    int maxZ = int.MinValue;
+
+    if (snapshot.terrains != null)
+    {
+        for (int i = 0; i < snapshot.terrains.Count; i++)
+        {
+            ShipTerrainSnapshot entry = snapshot.terrains[i];
+            if (entry == null)
+                continue;
+
+            hasAny = true;
+            minX = Mathf.Min(minX, entry.offset.x);
+            minZ = Mathf.Min(minZ, entry.offset.z);
+            maxX = Mathf.Max(maxX, entry.offset.x);
+            maxZ = Mathf.Max(maxZ, entry.offset.z);
+        }
+    }
+
+    if (snapshot.buildings != null)
+    {
+        for (int i = 0; i < snapshot.buildings.Count; i++)
+        {
+            ShipThingSnapshot entry = snapshot.buildings[i];
+            if (entry == null || entry.thing == null || entry.thing.def == null)
+                continue;
+
+            foreach (IntVec3 occupied in GenAdj.OccupiedRect(entry.offset, entry.rotation, entry.thing.def.Size).Cells)
+            {
+                hasAny = true;
+                minX = Mathf.Min(minX, occupied.x);
+                minZ = Mathf.Min(minZ, occupied.z);
+                maxX = Mathf.Max(maxX, occupied.x);
+                maxZ = Mathf.Max(maxZ, occupied.z);
+            }
+        }
+    }
+
+    if (!hasAny)
+        return CellRect.CenteredOn(IntVec3.Zero, 0);
+
+    return CellRect.FromLimits(minX, minZ, maxX, maxZ);
+}
+
+private static System.Collections.Generic.IEnumerable<IntVec3> EnumerateOccupiedCells(ShipSnapshot snapshot, IntVec3 targetCenter)
+{
+    if (snapshot == null)
+        yield break;
+
+    if (snapshot.terrains != null)
+    {
+        for (int i = 0; i < snapshot.terrains.Count; i++)
+        {
+            ShipTerrainSnapshot entry = snapshot.terrains[i];
+            if (entry == null)
+                continue;
+
+            yield return targetCenter + entry.offset;
+        }
+    }
+
+    if (snapshot.buildings != null)
+    {
+        for (int i = 0; i < snapshot.buildings.Count; i++)
+        {
+            ShipThingSnapshot entry = snapshot.buildings[i];
+            if (entry == null || entry.thing == null || entry.thing.def == null)
+                continue;
+
+            foreach (IntVec3 occupied in GenAdj.OccupiedRect(targetCenter + entry.offset, entry.rotation, entry.thing.def.Size).Cells)
+                yield return occupied;
+        }
+    }
+}
+
         private static void RestoreTerrain(ShipSnapshot snapshot, Map map, IntVec3 targetCenter)
         {
             if (snapshot.terrains == null)

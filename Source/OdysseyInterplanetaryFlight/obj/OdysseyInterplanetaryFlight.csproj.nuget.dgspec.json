@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "restore": {
+    "C:\\RimWorld\\Mods\\3690302923\\Source\\OdysseyInterplanetaryFlight\\OdysseyInterplanetaryFlight.csproj": {}
+  },
+  "projects": {
+    "C:\\RimWorld\\Mods\\3690302923\\Source\\OdysseyInterplanetaryFlight\\OdysseyInterplanetaryFlight.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\RimWorld\\Mods\\3690302923\\Source\\OdysseyInterplanetaryFlight\\OdysseyInterplanetaryFlight.csproj",
+        "projectName": "OdysseyInterplanetaryFlight",
+        "projectPath": "C:\\RimWorld\\Mods\\3690302923\\Source\\OdysseyInterplanetaryFlight\\OdysseyInterplanetaryFlight.csproj",
+        "packagesPath": "C:\\Users\\user\\.nuget\\packages\\",
+        "outputPath": "C:\\RimWorld\\Mods\\3690302923\\Source\\OdysseyInterplanetaryFlight\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\user\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net472"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net472": {
+            "targetAlias": "net472",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        }
+      },
+      "frameworks": {
+        "net472": {
+          "targetAlias": "net472",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\7.0.304\\RuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

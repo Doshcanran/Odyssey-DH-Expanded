@@ -417,62 +417,82 @@ namespace InterstellarOdyssey
         /// 2. GenerateMapAtTile → карта в новом мире
         /// 3. TryRestoreShip → корабль на карте
         /// </summary>
-        public bool TryLandShipOnNewPlanet(ShipTransitRecord record, int tile, ShipLandingMode mode)
-        {
-            if (record == null || record.snapshot == null) return false;
+        
+public bool TryBeginLandingOnNewPlanet(ShipTransitRecord record, int tile, ShipLandingMode mode)
+{
+    if (record == null || record.snapshot == null)
+        return false;
 
-            // PrepareNewPlanetWorld уже вызван ДО открытия глобуса:
-            // мир перегенерирован, вакуум удалён, currentPlanetNodeId обновлён.
+    OrbitalNode destNode = GetNodeById(record.destinationId);
 
-            OrbitalNode destNode = GetNodeById(record.destinationId);
+    Map landingMap = InterplanetaryLandingHelper.GenerateMapAtTile(tile, destNode);
+    if (landingMap == null)
+    {
+        Messages.Message("Не удалось создать карту посадки.", MessageTypeDefOf.RejectInput, false);
+        return false;
+    }
 
-            // ── Генерируем карту на выбранном тайле нового мира ──────────────
-            Map landingMap = InterplanetaryLandingHelper.GenerateMapAtTile(tile, destNode);
-            if (landingMap == null)
-            {
-                Messages.Message("IO_CreateMapAtTileFailed".Translate(),
-                    MessageTypeDefOf.RejectInput, false);
-                return false;
-            }
+    if (!ShipLandingUtility.IsModeAllowedForDestination(mode, destNode, out _))
+        mode = ShipLandingMode.Precise;
 
-            // ── 3. Размещаем корабль ──────────────────────────────────────────
-            if (!ShipLandingUtility.IsModeAllowedForDestination(mode, destNode, out _))
-                mode = ShipLandingMode.Precise;
+    // Для обычных поверхностных планет в precise-режиме повторяем UX Odyssey:
+    // сначала выбор world tile, потом выбор exact cell на уже сгенерированной карте.
+    if (mode == ShipLandingMode.Precise && destNode?.type != OrbitalNodeType.Station)
+    {
+        PreciseLandingTargeter.Begin(this, record, landingMap, destNode, tile, mode);
+        return true;
+    }
 
-            if (!ShipLandingUtility.TryFindLandingCenter(record.snapshot, landingMap, mode, out IntVec3 center))
-                center = landingMap.Center;
+    IntVec3 center;
+    if (!ShipLandingUtility.TryFindLandingCenter(record.snapshot, landingMap, mode, out center))
+        center = landingMap.Center;
 
-            if (!ShipLandingUtility.TryRestoreShip(record.snapshot, landingMap, center, mode, out Thing restoredAnchor))
-            {
-                AddDiagnostic("Landing", "IO_LandingFailedTitle".Translate(), "IO_TryRestoreShipReturnedFalse".Translate(),
-                    "tile=" + tile, InterstellarDiagnosticSeverity.Error);
-                return false;
-            }
+    return FinalizeLandingOnGeneratedMap(record, landingMap, tile, center, mode);
+}
 
-            ShipLandingUtility.SpawnTransitLoot(record, landingMap, center);
+public bool FinalizeLandingOnGeneratedMap(ShipTransitRecord record, Map landingMap, int tile, IntVec3 center, ShipLandingMode mode)
+{
+    if (record == null || record.snapshot == null || landingMap == null)
+        return false;
 
-            // FixSpawnedFactions и NormalizeLandedPawns больше не нужны:
-            // мы не вызываем GenerateWorld, поэтому faction-ссылки остаются валидными.
+    OrbitalNode destNode = GetNodeById(record.destinationId);
 
-            record.stage = InterstellarTransitStage.None;
-            if (record.snapshot != null) record.snapshot.currentNodeId = record.destinationId;
+    if (!ShipLandingUtility.TryRestoreShip(record.snapshot, landingMap, center, mode, out Thing restoredAnchor))
+    {
+        AddDiagnostic("Landing", "IO_LandingFailedTitle".Translate(), "IO_TryRestoreShipReturnedFalse".Translate(),
+            "tile=" + tile + ", center=" + center, InterstellarDiagnosticSeverity.Error);
+        return false;
+    }
 
-            SetCurrentNodeForShip(restoredAnchor, record.destinationId,
-                record.shipDefName, record.shipLabel, record.shipThingId);
-            activeTravels.Remove(record);
-            SelectGalaxy(destNode?.galaxyId ?? selectedGalaxyId);
+    ShipLandingUtility.SpawnTransitLoot(record, landingMap, center);
 
-            Messages.Message(
-                "IO_ShipLandedOn".Translate(record.shipLabel ?? "?", ResolveNodeLabel(destNode)) + " [" + ResolveLandingModeLabel(mode) + "].",
-                MessageTypeDefOf.PositiveEvent, false);
+    record.stage = InterstellarTransitStage.None;
+    if (record.snapshot != null)
+        record.snapshot.currentNodeId = record.destinationId;
 
-            if (Current.ProgramState == ProgramState.Playing)
-                Current.Game.CurrentMap = landingMap;
+    SetCurrentNodeForShip(restoredAnchor, record.destinationId,
+        record.shipDefName, record.shipLabel, record.shipThingId);
+    activeTravels.Remove(record);
+    SelectGalaxy(destNode?.galaxyId ?? selectedGalaxyId);
 
-            return true;
-        }
+    Messages.Message(
+        "IO_ShipLandedOn".Translate(record.shipLabel ?? "?", ResolveNodeLabel(destNode)) + " [" + ResolveLandingModeLabel(mode) + "].",
+        MessageTypeDefOf.PositiveEvent, false);
 
-        // ─────────────────────────────────────────────────────────────────────
+    if (Current.ProgramState == ProgramState.Playing)
+        Current.Game.CurrentMap = landingMap;
+
+    CameraJumper.TryJump(center, landingMap);
+    return true;
+}
+
+// Совместимость со старым кодом/вызовами.
+public bool TryLandShipOnNewPlanet(ShipTransitRecord record, int tile, ShipLandingMode mode)
+{
+    return TryBeginLandingOnNewPlanet(record, tile, mode);
+}
+
+// ─────────────────────────────────────────────────────────────────────
         //  Создание карты на новом тайле
         // ─────────────────────────────────────────────────────────────────────
         private static Map CreateLandingMap(int tile, OrbitalNode node)

@@ -111,7 +111,7 @@ namespace InterstellarOdyssey
                         return false;
                     }
 
-                    bool landed = capturedData.TryLandShipOnNewPlanet(
+                    bool landed = capturedData.TryBeginLandingOnNewPlanet(
                         capturedTravel,
                         tile,
                         ShipLandingMode.Precise);
